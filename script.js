@@ -1,5 +1,5 @@
 // ⚙️ Stripe publishable key
-const stripe = Stripe("pk_test_51N67KeFYbT9vhXCbucDMmmc5tUaGGyOJGsaC185haNyfCQAWRVUNcKuuDfvmmiOJip95Zg1lGMJeJpcQgxWfkrZR00vhxptYgx");
+const stripe = Stripe("pk_live_51N67KeFYbT9vhXCbG4eD7Zru8jC4gE6TJCRblelKS4h6TwEC75dKDUhq7cy9o2xee0OVC2EG2OOi7S6MLuGLqM5Q00rtiPwVw5x");
 
 let cart = [];
 let customers = [];
