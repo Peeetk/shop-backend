@@ -1,6 +1,5 @@
 // ✅ Load environment variables FIRST
 import dotenv from "dotenv";
-
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -33,14 +32,19 @@ app.use(express.json());
 // 💳 Create checkout session
 app.post("/create-checkout-session", async (req, res) => {
   try {
+    console.log("📩 Received cart:", req.body.cart); // 👈 log incoming data
+
     const items = req.body.cart || [];
-    if (!items.length) return res.status(400).json({ error: "Cart is empty" });
+    if (!items.length) {
+      console.log("❌ Cart is empty");
+      return res.status(400).json({ error: "Cart is empty" });
+    }
 
     const line_items = items.map(i => ({
       price_data: {
         currency: "gbp",
         product_data: { name: i.name },
-        unit_amount: Math.round(i.price * 100), // convert £ to pence
+        unit_amount: Math.round(Number(i.price) * 100), // ensure numeric
       },
       quantity: i.quantity,
     }));
@@ -53,9 +57,10 @@ app.post("/create-checkout-session", async (req, res) => {
       cancel_url: "https://sondypayee.netlify.app/cancel.html",
     });
 
+    console.log("✅ Stripe session created:", session.id);
     res.json({ id: session.id });
   } catch (err) {
-    console.error("Stripe error:", err);
+    console.error("❌ Stripe error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -64,7 +69,7 @@ app.post("/create-checkout-session", async (req, res) => {
 app.get("/test", async (req, res) => {
   try {
     const account = await stripe.accounts.retrieve();
-    console.log("Full account object:", account); // 👈 add this
+    console.log("Full account object:", account);
     res.send(`✅ Connected to Stripe account: ${account.id}`);
   } catch (err) {
     console.error("Stripe test failed:", err);
@@ -72,12 +77,12 @@ app.get("/test", async (req, res) => {
   }
 });
 
+// 🧭 Root route
 app.get("/", (req, res) => {
   res.send("✅ Stripe backend is running successfully!");
 });
 
-// ✅ Start the server
-const PORT = process.env.PORT || 10000;
+// 🧩 Debug route
 app.get("/debug-env", (req, res) => {
   res.json({
     stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
@@ -87,4 +92,6 @@ app.get("/debug-env", (req, res) => {
   });
 });
 
+// ✅ Start the server
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
