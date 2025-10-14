@@ -137,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
       quantity: item.quantity
     }));
 
-    fetch("/create-checkout-session", {
+    fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ cart: formattedCart, customerId: selectedCustomerId })
