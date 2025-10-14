@@ -1,0 +1,220 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  text-align: center;
+  background-image: url('.//dog.jpg'); /* replace with your image path */
+  background-size: cover;      /* make it cover the whole window */
+  background-position: center; /* center the image */
+  background-repeat: no-repeat; /* prevent repeating */
+  height: 100vh;               /* make body fill viewport height */
+}
+
+
+header {
+  background: #333;
+  color: white;
+  padding: 1em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 🧱 Container for the two boxes */
+.products {
+  display: flex;
+  justify-content: center;      /* centers horizontally */
+  align-items: flex-start;      /* aligns the tops evenly */
+  gap: 40px;                    /* space between boxes */
+  flex-wrap: wrap;              /* makes it responsive on smaller screens */
+  margin-top: 50px;
+}
+
+/* 🎁 Each box style */
+.product {
+  background: rgba(255, 255, 255, 0.85);  /* translucent white */
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  padding: 20px;
+  width: 100%;
+max-width: 400px;
+
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.product:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* 🧍‍♂️ For your small “Add Amount” box */
+.checkout-box {
+  
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  padding: 20px;
+  width: 100%;
+  max-width: 200px;
+
+  text-align: center;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.checkout-box:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Buttons */
+button {
+  background: #0070f3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #005bb5;
+  transform: translateY(-5px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+
+
+.product img {
+  width: 100%;
+  max-width: 150px;
+
+  height: auto;
+}
+
+.price {
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+button {
+  background: #0070f3;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+
+
+.message {
+  text-align: center;
+  margin-top: 100px;
+}
+
+.message h1 {
+  color: #0070f3;
+}
+
+.message a {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: #0070f3;
+  color: white;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.message a:hover {
+  background: #005bb5;
+}
+
+#custom-amount {
+  width: 100%;
+  padding: 5px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  text-align:end;
+}
+
+#customer-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;     /* centers the <li> horizontally */
+  justify-content: center; /* optional: vertical centering if height is set */
+  list-style: none;        /* removes bullet points */
+  padding: 0;
+  margin: 0 auto;          /* centers the whole list block */
+}
+
+#customer-list li {
+  padding: 8px;
+  background: #c20606;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+  color: white;
+  width: fit-content;
+  margin-top: 20px;
+}
+
+#customer-list li:hover {
+  background: #e0e0e0;
+}
+
+#customer-list-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+#list-name {
+  display: flex;
+  flex-direction: column;
+  align-items: center;     /* centers the <li> horizontally */
+  justify-content: center; /* optional: vertical centering if height is set */
+  list-style: none;        /* removes bullet points */
+  padding: 2px;
+  margin: 0 auto;
+}
+
+/* Default styles for desktop */
+.container {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  #customer-list li {
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .product {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .add-to-cart {
+    width: 100%;
+  }
+
+  #custom-amount,
+  #add-custom {
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  #cart-button {
+    width: 100%;
+    margin-top: 12px;
+  }
+}
