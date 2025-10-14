@@ -45,7 +45,7 @@ app.post("/create-checkout-session", async (req, res) => {
     currency: "gbp",
     product_data: { name: i.name },
     // Accept either i.price or i.amount for safety
-    unit_amount: Math.round(Number(i.price ?? i.amount) * 100),
+    unit_amount: Math.round(Number(i.price ?? i.amount)),
   },
   quantity: i.quantity,
 }));
