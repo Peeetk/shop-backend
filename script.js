@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const item = {
           name: `Customer: ${customer.name}`,
-          price: customer.total,
+          price: parseFloat(customer.total), // ensure numeric
           quantity: 1
         };
 
@@ -53,37 +53,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 🔍 Search filter with shorthand matching
   searchInput.addEventListener("input", () => {
-  const query = searchInput.value.toLowerCase().trim();
+    const query = searchInput.value.toLowerCase().trim();
 
-  if (query === "") {
-    customerList.style.display = "none";
-    return;
-  }
+    if (query === "") {
+      customerList.style.display = "none";
+      return;
+    }
 
-  const filtered = customers.filter(c => {
-    const nameParts = c.name.toLowerCase().split(" ");
-    if (nameParts.length < 2) return false;
+    const filtered = customers.filter(c => {
+      const nameParts = c.name.toLowerCase().split(" ");
+      if (nameParts.length < 2) return false;
 
-    const first = nameParts[0];
-    const second = nameParts[1];
-    const last = nameParts[nameParts.length - 1];
+      const first = nameParts[0];
+      const second = nameParts[1];
+      const last = nameParts[nameParts.length - 1];
 
-    const initials = [
-      `${first} ${second[0]}`,
-      `${first} ${last[0]}`,
-      `${second} ${first[0]}`,
-      `${last} ${first[0]}`
-    ];
+      const initials = [
+        `${first} ${second[0]}`,
+        `${first} ${last[0]}`,
+        `${second} ${first[0]}`,
+        `${last} ${first[0]}`
+      ];
 
-    return initials.includes(query);
+      return initials.includes(query);
+    });
+
+    if (filtered.length > 0) {
+      displayCustomers(filtered);
+    } else {
+      customerList.style.display = "none";
+    }
   });
-
-  if (filtered.length > 0) {
-    displayCustomers(filtered);
-  } else {
-    customerList.style.display = "none";
-  }
-});
 
   // 📦 Add product to cart
   document.querySelectorAll(".add-to-cart").forEach(button => {
@@ -91,7 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const product = e.target.closest(".product");
       const item = {
         name: product.dataset.name,
-        price: parseFloat(product.dataset.price),
+        price: parseFloat(product.dataset.price), // ensure numeric
         quantity: 1
       };
       cart.push(item);
@@ -123,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
     customAmountInput.value = "";
   });
 
-  // 💳 Checkout
+  // 💳 Checkout logic
   const cartButton = document.getElementById("cart-button");
   cartButton.addEventListener("click", () => {
     if (cart.length === 0) {
@@ -131,28 +131,32 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // 👀 Log cart before sending
+    console.log("🛒 Sending cart:", cart);
+
+    // Prepare formatted cart (numeric prices only)
     const formattedCart = cart.map(item => ({
       name: item.name,
-      amount: Math.round(item.price * 100),
+      price: parseFloat(item.price),
       quantity: item.quantity
     }));
 
-fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ cart })
-})
-  .then(res => res.json())
-  .then(data => {
-    console.log("💬 Server returned:", data);
-    if (!data.id) throw new Error("Missing session ID from server!");
-    return stripe.redirectToCheckout({ sessionId: data.id });
-  })
-  .catch(err => alert("Error: " + err.message));
-
+    // Send checkout request to backend
+    fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cart: formattedCart })
+    })
+      .then(res => res.json())
+      .then(data => {
+        console.log("💬 Server returned:", data);
+        if (!data.id) throw new Error("Missing session ID from server!");
+        return stripe.redirectToCheckout({ sessionId: data.id });
+      })
+      .catch(err => alert("Checkout error: " + err.message));
   });
 
-  // 📁 Load customers — keep each entry separate
+  // 📁 Load customers
   fetch("customers.json")
     .then(res => res.json())
     .then(data => {
