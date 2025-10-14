@@ -32,33 +32,33 @@ app.use(express.json());
 // 💳 Create checkout session
 app.post("/create-checkout-session", async (req, res) => {
   try {
-    console.log("📩 Received cart:", req.body.cart); // 👈 log incoming data
+    const cart = req.body.cart || [];
+    console.log("📩 Received cart:", cart);
 
-const line_items = items.map(i => {
-  let amount = parseFloat(i.price ?? i.amount);
+    if (!cart.length) {
+      return res.status(400).json({ error: "Cart is empty" });
+    }
 
-  // Fix any commas (e.g. "3,20" → "3.20")
-  if (isNaN(amount)) {
-    amount = Number(String(i.price ?? i.amount).replace(",", "."));
-  }
+    const line_items = cart.map(i => {
+      let amount = parseFloat(i.price ?? i.amount);
+      if (isNaN(amount)) {
+        amount = Number(String(i.price ?? i.amount).replace(",", "."));
+      }
 
-  // Convert to pence
-  let unit_amount = Math.round(amount * 100);
+      let unit_amount = Math.round(amount * 100);
+      if (unit_amount < 30) unit_amount = 30;
 
-  // Enforce Stripe minimum charge (30p)
-  if (unit_amount < 30) unit_amount = 30;
+      return {
+        price_data: {
+          currency: "gbp",
+          product_data: { name: i.name },
+          unit_amount,
+        },
+        quantity: i.quantity,
+      };
+    });
 
-  return {
-    price_data: {
-      currency: "gbp",
-      product_data: { name: i.name },
-      unit_amount,
-    },
-    quantity: i.quantity,
-  };
-});
-
-
+    console.log("🧾 Stripe line_items:", JSON.stringify(line_items, null, 2));
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
