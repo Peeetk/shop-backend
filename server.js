@@ -34,21 +34,30 @@ app.post("/create-checkout-session", async (req, res) => {
   try {
     console.log("📩 Received cart:", req.body.cart); // 👈 log incoming data
 
-    const items = req.body.cart || [];
-    if (!items.length) {
-      console.log("❌ Cart is empty");
-      return res.status(400).json({ error: "Cart is empty" });
-    }
+const line_items = items.map(i => {
+  let amount = parseFloat(i.price ?? i.amount);
 
-    const line_items = items.map(i => ({
-  price_data: {
-    currency: "gbp",
-    product_data: { name: i.name },
-    // Accept either i.price or i.amount for safety
-    unit_amount: Math.round(Number(i.price ?? i.amount)),
-  },
-  quantity: i.quantity,
-}));
+  // Fix any commas (e.g. "3,20" → "3.20")
+  if (isNaN(amount)) {
+    amount = Number(String(i.price ?? i.amount).replace(",", "."));
+  }
+
+  // Convert to pence
+  let unit_amount = Math.round(amount * 100);
+
+  // Enforce Stripe minimum charge (30p)
+  if (unit_amount < 30) unit_amount = 30;
+
+  return {
+    price_data: {
+      currency: "gbp",
+      product_data: { name: i.name },
+      unit_amount,
+    },
+    quantity: i.quantity,
+  };
+});
+
 
 
     const session = await stripe.checkout.sessions.create({
