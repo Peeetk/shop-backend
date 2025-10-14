@@ -142,11 +142,11 @@ cartButton.addEventListener("click", () => {
   console.log("🛒 Sending cart:", formattedCart); // for debugging
 
   // ✅ Send formatted cart to backend
-fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ cart: formattedCart })
-})
+  fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cart: formattedCart })
+  })
   .then(res => res.json())
   .then(data => {
     console.log("💬 Server returned:", data);
@@ -154,7 +154,7 @@ fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
     return stripe.redirectToCheckout({ sessionId: data.id });
   })
   .catch(err => alert("Error: " + err.message));
-
+});
 
 
   // 📁 Load customers
