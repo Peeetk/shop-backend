@@ -16,6 +16,8 @@ const app = express();
 // ✅ Enable CORS for your Netlify frontend
 app.use(cors({
   origin: "https://sondypayee.netlify.app" // your live frontend URL
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"],
 }));
 
 // ✅ Confirm that the Stripe key is loaded (for debugging)
