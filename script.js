@@ -1,5 +1,5 @@
 // ⚙️ Stripe publishable key
-const stripe = Stripe("pk_live_51N67KeFYbT9vhXCbG4eD7Zru8jC4gE6TJCRblelKS4h6TwEC75dKDUhq7cy9o2xee0OVC2EG2OOi7S6MLuGLqM5Q00rtiPwVw5x");
+const stripe = Stripe("pk_live_51N67KeFYbT9vhXCbG4eD7Zru8jC4gE6TJCRblelKS4h6TwEC75dKDUhq7cy9o2xee0OVC2EG2OOi7S6MLuGLqM5Q00rtiPwVw5");
 
 let cart = [];
 let customers = [];
@@ -142,11 +142,11 @@ cartButton.addEventListener("click", () => {
   console.log("🛒 Sending cart:", formattedCart); // for debugging
 
   // ✅ Send formatted cart to backend
-  fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cart: formattedCart })
-  })
+fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ cart: formattedCart })
+})
   .then(res => res.json())
   .then(data => {
     console.log("💬 Server returned:", data);
@@ -154,7 +154,7 @@ cartButton.addEventListener("click", () => {
     return stripe.redirectToCheckout({ sessionId: data.id });
   })
   .catch(err => alert("Error: " + err.message));
-});
+
 
 
   // 📁 Load customers
