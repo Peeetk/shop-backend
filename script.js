@@ -124,37 +124,38 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // 💳 Checkout logic
-  const cartButton = document.getElementById("cart-button");
-  cartButton.addEventListener("click", () => {
-    if (cart.length === 0) {
-      alert("Your cart is empty!");
-      return;
-    }
+// 💳 Checkout
+const cartButton = document.getElementById("cart-button");
+cartButton.addEventListener("click", () => {
+  if (cart.length === 0) {
+    alert("Your cart is empty!");
+    return;
+  }
 
-    // 👀 Log cart before sending
-    console.log("🛒 Sending cart:", cart);
+  // 🧩 Prepare data for backend (numbers only)
+  const formattedCart = cart.map(item => ({
+    name: item.name,
+    price: parseFloat(item.price), // use "price" to match backend
+    quantity: item.quantity
+  }));
 
-    // Prepare formatted cart (numeric prices only)
-    const formattedCart = cart.map(item => ({
-      name: item.name,
-      price: parseFloat(item.price),
-      quantity: item.quantity
-    }));
+  console.log("🛒 Sending cart:", formattedCart); // for debugging
 
-    // Send checkout request to backend
-    fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cart: formattedCart })
-    })
-      .then(res => res.json())
-      .then(data => {
-        console.log("💬 Server returned:", data);
-        if (!data.id) throw new Error("Missing session ID from server!");
-        return stripe.redirectToCheckout({ sessionId: data.id });
-      })
-      .catch(err => alert("Checkout error: " + err.message));
-  });
+  // ✅ Send formatted cart to backend
+  fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cart: formattedCart })
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log("💬 Server returned:", data);
+    if (!data.id) throw new Error("Missing session ID from server!");
+    return stripe.redirectToCheckout({ sessionId: data.id });
+  })
+  .catch(err => alert("Error: " + err.message));
+});
+
 
   // 📁 Load customers
   fetch("customers.json")

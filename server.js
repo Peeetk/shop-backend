@@ -41,13 +41,15 @@ app.post("/create-checkout-session", async (req, res) => {
     }
 
     const line_items = items.map(i => ({
-      price_data: {
-        currency: "gbp",
-        product_data: { name: i.name },
-        unit_amount: Math.round(Number(i.price) * 100), // ensure numeric
-      },
-      quantity: i.quantity,
-    }));
+  price_data: {
+    currency: "gbp",
+    product_data: { name: i.name },
+    // Accept either i.price or i.amount for safety
+    unit_amount: Math.round(Number(i.price ?? i.amount) * 100),
+  },
+  quantity: i.quantity,
+}));
+
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
