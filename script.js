@@ -137,23 +137,19 @@ document.addEventListener("DOMContentLoaded", () => {
       quantity: item.quantity
     }));
 
-    fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cart: formattedCart, customerId: selectedCustomerId })
-    })
-    .then(async res => {
-      const text = await res.text();
-      if (!text) throw new Error("Empty response from server");
-      const data = JSON.parse(text);
+fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ cart })
+})
+  .then(res => res.json())
+  .then(data => {
+    console.log("💬 Server returned:", data);
+    if (!data.id) throw new Error("Missing session ID from server!");
+    return stripe.redirectToCheckout({ sessionId: data.id });
+  })
+  .catch(err => alert("Error: " + err.message));
 
-      if (!data.id) throw new Error("Missing session ID from server!");
-      return stripe.redirectToCheckout({ sessionId: data.id });
-    })
-    .catch(err => {
-      console.error("Checkout error:", err);
-      alert("Error: " + err.message);
-    });
   });
 
   // 📁 Load customers — keep each entry separate

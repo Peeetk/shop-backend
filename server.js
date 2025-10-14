@@ -78,4 +78,13 @@ app.get("/", (req, res) => {
 
 // ✅ Start the server
 const PORT = process.env.PORT || 10000;
+app.get("/debug-env", (req, res) => {
+  res.json({
+    stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
+    stripeKeyPrefix: process.env.STRIPE_SECRET_KEY
+      ? process.env.STRIPE_SECRET_KEY.slice(0, 10)
+      : null
+  });
+});
+
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
