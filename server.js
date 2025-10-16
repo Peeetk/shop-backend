@@ -106,3 +106,32 @@ app.get("/debug-env", (req, res) => {
 // ✅ Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
+import nodemailer from "nodemailer";
+
+// 📧 Create reusable transporter
+const transporter = nodemailer.createTransport({
+  service: "gmail", // or "hotmail" / "outlook" etc.
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS, // app password
+  },
+});
+
+app.post("/notify-payment", async (req, res) => {
+  try {
+    const { date } = req.body;
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: "your.email@example.com", // 👈 your inbox
+      subject: "💰 New Payment Completed",
+      text: `Someone has completed a payment on ${date}.`,
+    });
+
+    console.log("📧 Email sent successfully!");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Email sending failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
