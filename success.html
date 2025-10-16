@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -10,8 +9,37 @@
   <body>
     <div class="message">
       <h1>✅ Payment Successful!</h1>
-      <p>Thank you for your order. Your payment has been processed.</p>
-      <a href="index.html">Back to shop</a>
+      <p>Thank you for your payment.</p>
+      <p>Your payment was completed on:</p>
+      <p id="payment-date" class="date-box"></p>
+
+      <a href="index.html">Return to Shop</a>
     </div>
+
+    <script>
+      // Get current date
+      const now = new Date();
+
+      // Format as DD/MM/YYYY
+      const formatted = now.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+
+      window.addEventListener("load", () => {
+  const now = new Date().toLocaleString("en-GB");
+  fetch("https://shop-backend-dom2.onrender.com/notify-payment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ date: now }),
+  })
+    .then(res => res.json())
+    .then(data => console.log("✅ Notification sent:", data))
+    .catch(err => console.error("❌ Error sending notification:", err));
+});
+      // Insert into the page
+      document.getElementById("payment-date").textContent = formatted;
+    </script>
   </body>
 </html>
