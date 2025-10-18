@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stripe Custom Cart</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    
+    <header>
+      <h1>Sonda SHOP</h1>
+      <div>Cart: <span id="cart-count">0</span></div>
+      <div style="margin-top: 30px">
+        <button class="button-check" id="cart-button">Fizetés!</button>
+      <Eves/div>
+    </header>
+
+    <main>
+     
+      <!-- Customer search -->
+    <div>
+      <input type="text" id="customer-search"/>
+      
+    </div>
+      <!-- Example products -->
+
+      
+      <div>
+        <p>Ha elso regisztraló vagy. Esetleg, ha mas összeget szeretnél küldeni <em> <strong>(egyeztetés után)</strong></em>, akkor használd az ⬇️(Összeg) mezőt.⬇️</p>
+      </div>
+      <!-- Custom amount -->
+      <div class="checkout-box" style="margin-top: 30px">
+        <input
+          type="number"
+          id="custom-amount"
+          placeholder="Összeg (£)"
+          min="0.01"
+          step="0.01"
+        />
+        <button id="add-custom">Összeg Hozzáadása</button>
+      </div>
+
+    
+    </div>
+
+      
+    </main>
+
+    <!-- Load Stripe.js first -->
+    <script src="https://js.stripe.com/v3/"></script>
+
+    <!-- Then load your script -->
+    <script src="script.js"></script>
+  </body>
+</html>

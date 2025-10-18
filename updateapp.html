@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stripe Custom Cart</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    
+    <header>
+      <h1>Sonda SHOP</h1>
+      <div>Cart: <span id="cart-count">0</span></div>
+      <div style="margin-top: 30px">
+        <button class="button-check" id="cart-button">Fizetés!</button>
+      <Eves/div>
+    </header>
+
+    <main>
+    
+      <!-- Customer search -->
+    <div>
+      <input id="customer-search"/>
+      <ul id="customer-list"></ul>
+    </div>
+      <!-- Example products -->
+
+      
+     
+      <!-- Custom amount -->
+    
+        <button id="add-custom"></button>
+      </div>
+
+          <div class="products">
+            <p>Ha lejart az appod, itt tudod kuldeni az arat. EZ NEM A HAVI ELOFIZETES!⬇️</p>
+      <div class="product" data-name="App eves aktivalas" data-price="3.20">
+        <img id="png" src="./tv-icon-13.png" alt="app" />
+        <div class="price">Tv App ÉveS Aktiválás £3.20</div>
+        <button class="add-to-cart">Add to Cart</button>
+      </div>
+    </div>
+
+      
+    </main>
+
+    <!-- Load Stripe.js first -->
+    <script src="https://js.stripe.com/v3/"></script>
+
+    <!-- Then load your script -->
+    <script src="script.js"></script>
+  </body>
+</html>

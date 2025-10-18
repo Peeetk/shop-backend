@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stripe Custom Cart</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    
+    <header>
+      <h1>Sonda SHOP</h1>
+      <div>Cart: <span id="cart-count">0</span></div>
+      <div style="margin-top: 30px">
+        <button class="button-check" id="cart-button">Fizetés!</button>
+      <Eves/div>
+    </header>
+
+    <main>
+      <div>
+        <p>Kedves Felhasználó, írd be a keresőbe a Facebookon lévő Neved Első részét, aztán a következő első betűjét.</p>
+        <p>Példáúl: Janos V, majd a lejövő listán nyomj a ⬇️nevedre⬇️, <strong><em>OK</strong></em> es <strong><em>Fizetes➚</strong> </em></p>
+      </div>
+      <!-- Customer search -->
+    <div class="list-box" id="list-name" style="margin-top: 30px">
+      <input type="text" id="customer-search" placeholder="IDE IRD BE A Facebook Neved" />
+      <ul id="customer-list"></ul>
+    </div>
+      <!-- Example products -->
+
+      
+      
+      <!-- Custom amount -->
+      <div class="checkout-box" style="margin-top: 30px">
+        
+        <button id="add-custom"></button>
+      </div>
+
+          
+
+      
+    </main>
+
+    <!-- Load Stripe.js first -->
+    <script src="https://js.stripe.com/v3/"></script>
+
+    <!-- Then load your script -->
+    <script src="script.js"></script>
+  </body>
+</html>
