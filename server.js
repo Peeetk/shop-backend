@@ -53,21 +53,17 @@ app.post("/create-checkout-session", async (req, res) => {
       };
     });
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      line_items,
-      success_url: "https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://sondypayee.netlify.app/cancel.html",
-    });
-
-    console.log("✅ Stripe session created:", session.id);
-    res.json({ id: session.id });
-  } catch (err) {
-    console.error("❌ Stripe error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
+const session = await stripe.checkout.sessions.create({
+  payment_method_types: ["card"],
+  mode: "payment",
+  line_items,
+  metadata: {
+    customer_name: cart[0]?.name || "Unknown Customer"
+  },
+  success_url: `https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}`,
+  cancel_url: "https://sondypayee.netlify.app/cancel.html",
 });
+
 
 // ✅ Stripe test route
 app.get("/test", async (req, res) => {
@@ -168,5 +164,18 @@ app.get("/checkout-session", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.get("/session/:id", async (req, res) => {
+  try {
+    const session = await stripe.checkout.sessions.retrieve(req.params.id);
+    res.json({
+      customer_name: session.metadata.customer_name,
+      amount_total: session.amount_total
+    });
+  } catch (err) {
+    console.error("❌ Failed to fetch session:", err.message);
+    res.status(500).json({ error: "Failed to retrieve session details." });
+  }
+});
+
 
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
