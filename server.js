@@ -73,14 +73,16 @@ app.post("/create-checkout-session", async (req, res) => {
 });
 
 // ✅ Test Stripe connection
-app.get("/test", async (req, res) => {
+app.get("/session/:id", async (req, res) => {
   try {
-    const account = await stripe.accounts.retrieve();
-    console.log("Full account object:", account);
-    res.send(`✅ Connected to Stripe account: ${account.id}`);
+    const session = await stripe.checkout.sessions.retrieve(req.params.id);
+    res.json({
+      customer_name: session.metadata.customer_name,
+      amount_total: session.amount_total,
+    });
   } catch (err) {
-    console.error("Stripe test failed:", err);
-    res.status(500).send("❌ Stripe error: " + err.message);
+    console.error("❌ Failed to fetch session:", err.message);
+    res.status(500).json({ error: "Failed to retrieve session details." });
   }
 });
 

@@ -5,73 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Payment Successful</title>
     <link rel="stylesheet" href="style.css" />
-    <style>
-      .date-box {
-        font-weight: bold;
-        font-size: 1.2rem;
-        margin: 10px 0;
-      }
-      #customer-name {
-        font-size: 1.1rem;
-        color: #0070f3;
-        font-weight: 600;
-      }
-    </style>
   </head>
+
   <body>
     <div class="message">
       <h1>✅ Payment Successful!</h1>
       <p>Thank you for your payment.</p>
+
+      <p><strong>Name:</strong> <span id="customer-name">Loading...</span></p>
       <p>Your payment was completed on:</p>
-      <p id="payment-date" class="date-box">Loading...</p>
-      <p id="customer-name"></p>
+      <p id="payment-date" class="date-box"></p>
 
       <a href="index.html">Return to Shop</a>
     </div>
-    <div class="message">
-  <h1>✅ Payment Successful!</h1>
-  <div id="payment-info"></div>
-  <a href="index.html">Return to Shop</a>
-</div>
-
 
     <script>
-  async function showPaymentDetails() {
-    // Get session_id from the URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get("session_id");
+      async function showPaymentDetails() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get("session_id");
 
-    if (!sessionId) {
-      document.getElementById("payment-info").textContent = "No session found.";
-      return;
-    }
+        if (!sessionId) {
+          document.getElementById("customer-name").textContent = "Unknown";
+          document.getElementById("payment-date").textContent = "N/A";
+          return;
+        }
 
-    try {
-      const res = await fetch(`https://shop-backend-dom2.onrender.com/session/${sessionId}`);
-      const data = await res.json();
+        try {
+          const res = await fetch(
+            `https://shop-backend-dom2.onrender.com/session/${sessionId}`
+          );
+          const data = await res.json();
 
-      if (data.error) throw new Error(data.error);
+          if (data.error) throw new Error(data.error);
 
-      // Format the date
-      const now = new Date().toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric"
-      });
+          const date = new Date().toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
 
-      document.getElementById("payment-info").innerHTML = `
-        <p><strong>Name:</strong> ${data.customer_name || "Unknown"}</p>
-        <p><strong>Paid:</strong> £${(data.amount_total / 100).toFixed(2)}</p>
-        <p><strong>Date:</strong> ${now}</p>
-      `;
-    } catch (err) {
-      console.error("Error:", err);
-      document.getElementById("payment-info").textContent = "Error loading payment details.";
-    }
-  }
+          document.getElementById("customer-name").textContent =
+            data.customer_name || "Unknown";
+          document.getElementById("payment-date").textContent = date;
+        } catch (err) {
+          console.error("❌ Error fetching payment details:", err);
+          document.getElementById("customer-name").textContent = "Error";
+          document.getElementById("payment-date").textContent =
+            "Could not load details";
+        }
+      }
 
-  showPaymentDetails();
-</script>
-
+      showPaymentDetails();
+    </script>
   </body>
 </html>

@@ -372,3 +372,18 @@ p {
     margin: 0 auto;             /* ensure each box is centered */
   }
 }
+
+#payment-info {
+  margin-top: 15px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 15px 25px;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 1.1rem;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+}
+
+.highlight {
+  color: #0070f3;
+  font-weight: 600;
+}
