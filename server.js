@@ -53,19 +53,26 @@ app.post("/create-checkout-session", async (req, res) => {
       };
     });
 
-const session = await stripe.checkout.sessions.create({
-  payment_method_types: ["card"],
-  mode: "payment",
-  line_items,
-  metadata: {
-    customer_name: cart[0]?.name || "Unknown Customer"
-  },
-  success_url: `https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}`,
-  cancel_url: "https://sondypayee.netlify.app/cancel.html",
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items,
+      metadata: {
+        customer_name: cart[0]?.name || "Unknown Customer",
+      },
+      success_url: `https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: "https://sondypayee.netlify.app/cancel.html",
+    });
+
+    console.log("✅ Stripe session created:", session.id);
+    res.json({ id: session.id });
+  } catch (err) {
+    console.error("❌ Stripe error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-
-// ✅ Stripe test route
+// ✅ Test Stripe connection
 app.get("/test", async (req, res) => {
   try {
     const account = await stripe.accounts.retrieve();
@@ -88,26 +95,31 @@ app.get("/debug-env", (req, res) => {
     stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
     stripeKeyPrefix: process.env.STRIPE_SECRET_KEY
       ? process.env.STRIPE_SECRET_KEY.slice(0, 10)
-      : null
+      : null,
   });
 });
 
-// ✅ NEW — Fetch checkout session details
+// ✅ Fetch checkout session details (used by success.html)
 app.get("/checkout-session", async (req, res) => {
-  const { session_id } = req.query;
-  if (!session_id) return res.status(400).json({ error: "Missing session_id" });
-
   try {
-    const session = await stripe.checkout.sessions.retrieve(session_id);
+    const { session_id } = req.query;
+    if (!session_id) {
+      return res.status(400).json({ error: "Missing session_id" });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(session_id, {
+      expand: ["customer_details"],
+    });
 
     res.json({
       id: session.id,
-      amount_total: session.amount_total / 100,
-      currency: session.currency,
-      date: new Date(session.created * 1000).toLocaleDateString(),
+      customer_name: session.metadata?.customer_name || session.customer_details?.name || "Unknown",
+      amount_total: (session.amount_total / 100).toFixed(2),
+      currency: session.currency.toUpperCase(),
+      date: new Date(session.created * 1000).toLocaleDateString("en-GB"),
     });
   } catch (err) {
-    console.error("❌ Error retrieving session:", err);
+    console.error("❌ Error fetching session:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -123,12 +135,13 @@ const transporter = nodemailer.createTransport({
 
 app.post("/notify-payment", async (req, res) => {
   try {
-    const { date } = req.body;
+    const { date, customer_name, amount_total } = req.body;
+
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: "your.email@example.com", // 👈 replace with your actual email
       subject: "💰 New Payment Completed",
-      text: `Someone has completed a payment on ${date}.`,
+      text: `A payment of £${amount_total} was made by ${customer_name} on ${date}.`,
     });
 
     console.log("📧 Email sent successfully!");
@@ -141,41 +154,4 @@ app.post("/notify-payment", async (req, res) => {
 
 // ✅ Start the server
 const PORT = process.env.PORT || 10000;
-// ✅ Get Stripe checkout session details
-app.get("/checkout-session", async (req, res) => {
-  try {
-    const { session_id } = req.query;
-    if (!session_id) {
-      return res.status(400).json({ error: "Missing session_id" });
-    }
-
-    // Retrieve session info from Stripe
-    const session = await stripe.checkout.sessions.retrieve(session_id);
-
-    res.json({
-      id: session.id,
-      amount_total: session.amount_total / 100, // convert from pence to GBP
-      currency: session.currency,
-      date: new Date(session.created * 1000).toLocaleDateString("en-GB"),
-      customer_email: session.customer_details?.email || "Unknown",
-    });
-  } catch (err) {
-    console.error("❌ Error fetching session:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-app.get("/session/:id", async (req, res) => {
-  try {
-    const session = await stripe.checkout.sessions.retrieve(req.params.id);
-    res.json({
-      customer_name: session.metadata.customer_name,
-      amount_total: session.amount_total
-    });
-  } catch (err) {
-    console.error("❌ Failed to fetch session:", err.message);
-    res.status(500).json({ error: "Failed to retrieve session details." });
-  }
-});
-
-
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
