@@ -2,13 +2,13 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, ".env") }); // load .env from this folder
-
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
+import nodemailer from "nodemailer";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, ".env") }); // load .env from this folder
 
 const app = express();
 
@@ -22,7 +22,7 @@ app.use(cors({
 // ✅ Confirm that the Stripe key is loaded (for debugging)
 console.log("Stripe key detected:", process.env.STRIPE_SECRET_KEY ? "✅ Loaded" : "❌ Not found");
 
-// ✅ Initialize Stripe with your environment variable
+// ✅ Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ✅ Middleware
@@ -35,16 +35,11 @@ app.post("/create-checkout-session", async (req, res) => {
     const cart = req.body.cart || [];
     console.log("📩 Received cart:", cart);
 
-    if (!cart.length) {
-      return res.status(400).json({ error: "Cart is empty" });
-    }
+    if (!cart.length) return res.status(400).json({ error: "Cart is empty" });
 
     const line_items = cart.map(i => {
       let amount = parseFloat(i.price ?? i.amount);
-      if (isNaN(amount)) {
-        amount = Number(String(i.price ?? i.amount).replace(",", "."));
-      }
-
+      if (isNaN(amount)) amount = Number(String(i.price ?? i.amount).replace(",", "."));
       let unit_amount = Math.round(amount * 100);
       if (unit_amount < 30) unit_amount = 30;
 
@@ -58,13 +53,11 @@ app.post("/create-checkout-session", async (req, res) => {
       };
     });
 
-    console.log("🧾 Stripe line_items:", JSON.stringify(line_items, null, 2));
-
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
       line_items,
-      success_url: "https://sondypayee.netlify.app/success.html",
+      success_url: "https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
       cancel_url: "https://sondypayee.netlify.app/cancel.html",
     });
 
@@ -76,7 +69,7 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-// ✅ Test Stripe connection
+// ✅ Stripe test route
 app.get("/test", async (req, res) => {
   try {
     const account = await stripe.accounts.retrieve();
@@ -88,12 +81,12 @@ app.get("/test", async (req, res) => {
   }
 });
 
-// 🧭 Root route
+// ✅ Root route
 app.get("/", (req, res) => {
   res.send("✅ Stripe backend is running successfully!");
 });
 
-// 🧩 Debug route
+// ✅ Debug route
 app.get("/debug-env", (req, res) => {
   res.json({
     stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
@@ -103,18 +96,32 @@ app.get("/debug-env", (req, res) => {
   });
 });
 
-// ✅ Start the server
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+// ✅ NEW — Fetch checkout session details
+app.get("/checkout-session", async (req, res) => {
+  const { session_id } = req.query;
+  if (!session_id) return res.status(400).json({ error: "Missing session_id" });
 
-import nodemailer from "nodemailer";
+  try {
+    const session = await stripe.checkout.sessions.retrieve(session_id);
 
-// 📧 Create reusable transporter
+    res.json({
+      id: session.id,
+      amount_total: session.amount_total / 100,
+      currency: session.currency,
+      date: new Date(session.created * 1000).toLocaleDateString(),
+    });
+  } catch (err) {
+    console.error("❌ Error retrieving session:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ✅ Email notification setup
 const transporter = nodemailer.createTransport({
-  service: "gmail", // or "hotmail" / "outlook" etc.
+  service: "gmail", // You can replace with "hotmail", etc.
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // app password
+    pass: process.env.EMAIL_PASS, // app password or mail token
   },
 });
 
@@ -123,7 +130,7 @@ app.post("/notify-payment", async (req, res) => {
     const { date } = req.body;
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "your.email@example.com", // 👈 your inbox
+      to: "your.email@example.com", // 👈 replace with your actual email
       subject: "💰 New Payment Completed",
       text: `Someone has completed a payment on ${date}.`,
     });
@@ -135,3 +142,31 @@ app.post("/notify-payment", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ✅ Start the server
+const PORT = process.env.PORT || 10000;
+// ✅ Get Stripe checkout session details
+app.get("/checkout-session", async (req, res) => {
+  try {
+    const { session_id } = req.query;
+    if (!session_id) {
+      return res.status(400).json({ error: "Missing session_id" });
+    }
+
+    // Retrieve session info from Stripe
+    const session = await stripe.checkout.sessions.retrieve(session_id);
+
+    res.json({
+      id: session.id,
+      amount_total: session.amount_total / 100, // convert from pence to GBP
+      currency: session.currency,
+      date: new Date(session.created * 1000).toLocaleDateString("en-GB"),
+      customer_email: session.customer_details?.email || "Unknown",
+    });
+  } catch (err) {
+    console.error("❌ Error fetching session:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

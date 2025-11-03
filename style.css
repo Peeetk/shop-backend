@@ -1,32 +1,38 @@
 body {
-  font-family: Arial, sans-serif;
+ font-family: Arial, sans-serif;
   margin: 0;
+  padding: 0;
+  min-height: 100vh; /* ✅ make body fill full screen height */
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start; /* keeps header on top and content centered */
   text-align: center;
-  background-image: url('.//dog.jpg'); /* replace with your image path */
-  background-size: cover;      /* make it cover the whole window */
-  background-position: center; /* center the image */
-  background-repeat: no-repeat; /* prevent repeating */
-  height: 100vh;               /* make body fill viewport height */
+  background-image: url('./dog.jpg'); /* ✅ fixed path */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 
 header {
   background: #333;
-  color: white;
-  padding: 1em;
+  color: white; 
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin: 0 0 0
 }
 
 /* 🧱 Container for the two boxes */
 .products {
   display: flex;
   justify-content: center;      /* centers horizontally */
-  align-items: flex-start;      /* aligns the tops evenly */
+  align-items:center;  /* aligns the tops evenly */
   gap: 40px;                    /* space between boxes */
   flex-wrap: wrap;              /* makes it responsive on smaller screens */
-  margin-top: 50px;
+  margin-top: 20px;
+  padding-bottom: 50px;
 }
 
 /* 🎁 Each box style */
@@ -34,12 +40,11 @@ header {
   background: rgba(255, 255, 255, 0.85);  /* translucent white */
   border-radius: 16px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  padding: 20px;
-  width: 100%;
-max-width: 400px;
-
-  text-align: center;
+  padding: 10px;
+  text-align:center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  width:auto;
+  
 }
 
 .product:hover {
@@ -52,9 +57,7 @@ max-width: 400px;
   
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   padding: 20px;
-  width: 100%;
-  max-width: 200px;
-
+  width: auto;
   text-align: center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -73,6 +76,7 @@ button {
   padding: 10px 20px;
   font-size: 16px;
   cursor: pointer;
+  justify-content:space-around;
 }
 
 button:hover {
@@ -86,22 +90,29 @@ button:hover {
 .product img {
   width: 100%;
   max-width: 150px;
-
+  width: auto;
   height: auto;
 }
 
 .price {
   font-weight: bold;
   margin: 10px 0;
+  width:150px;
+  height:auto;
+}
+
+#png {
+  width:100px;
+  height:90px;
 }
 
 button {
   background: #0070f3;
   color: white;
   border: none;
-  padding: 10px 15px;
   border-radius: 6px;
   cursor: pointer;
+  align-items: center;
 }
 
 
@@ -167,14 +178,19 @@ button {
   justify-content: center;
 }
 
+#customer-search {
+  width: 100%;
+}
+
 #list-name {
   display: flex;
   flex-direction: column;
   align-items: center;     /* centers the <li> horizontally */
   justify-content: center; /* optional: vertical centering if height is set */
   list-style: none;        /* removes bullet points */
-  padding: 2px;
+  padding: 20px auto;
   margin: 0 auto;
+  width: auto;
 }
 
 /* Default styles for desktop */
@@ -216,5 +232,143 @@ button {
   #cart-button {
     width: 100%;
     margin-top: 12px;
+    align-items: center;
+  }
+}
+
+p {
+  border: 2px solid #333;       /* outline the box */
+  border-radius: 10px;          /* rounded corners */
+                /* space inside the box */
+  background-color: #f8f8f8;    /* light background */
+  width:auto; 
+           /* shrink box to content width */
+              /* optional limit */
+  margin: 10px auto;           /* center horizontally */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* optional shadow */
+  font-size: 18px;
+}
+
+.list-box {
+  border: 7px solid red;
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: auto; /* control width manually */
+  outline: none;
+  background-color: #333; 
+  max-width: 400px;
+  
+}
+
+/* Normal layout stays the same */
+
+/* Only scale the inner content on mobile */
+@media (max-width: 768px) {
+  .content-wrapper {
+    transform: scale(0.9);
+    transform-origin: top center;
+  }
+}
+
+@media (max-width: 480px) {
+  .content-wrapper {
+    transform: scale(0.8);
+    transform-origin: top center;
+  }
+}
+
+/* Basic reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+}
+
+
+
+/* Container for the buttons */
+.button-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 30px;
+  justify-content: center;
+  align-items: center;
+  margin: 40px auto; /* ✅ smaller, centered margin */
+  width: 100%;
+  height: 100%;
+  max-width: 600px; /* ✅ keeps layout narrow on phones */
+}
+
+/* Button styling */
+.image-button {
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 16px;
+  padding: 30px 30px 30px 30px;
+  width: 220px;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+}
+
+/* Button hover effect */
+.image-button:hover {
+  border-color: #0078ff;
+  box-shadow: 0 6px 16px rgba(0, 120, 255, 0.25);
+  transform: translateY(-4px);
+}
+
+/* Image inside button */
+.image-button img {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 12px;
+}
+
+/* Text inside button */
+.image-button span {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .image-button {
+    width: 80%;
+    height: 150px;
+  }
+}
+
+.home-link {
+  text-decoration: none;
+  color: inherit; /* keeps the same color as the h1 */
+}
+
+.home-link:hover {
+  text-decoration: underline; /* optional: small effect when hovering */
+  color: #ff0000; /* optional: you can change hover color if you like */
+}
+
+/* 📱 Fix centering on mobile */
+@media (max-width: 768px) {
+  .products,
+  .button-container {
+    flex-direction: column;     /* stack vertically */
+    align-items: center;        /* center horizontally */
+    justify-content: center;    /* center vertically */
+    gap: 20px;                  /* add space between boxes */
+    width: 100%;
+  }
+
+  .product,
+  .image-button {
+    margin: 0 auto;             /* ensure each box is centered */
   }
 }

@@ -12,13 +12,6 @@
     "Customer Name": "Radi Robert"
   },
   {
-    "Subtotal": "17.70",
-    "Total": "17.70",
-    "Customer Email": "roxyyorkie@hotmail.com",
-    "Customer Name": "Tamas Szabo 67"
-  },
-
-  {
     "Subtotal": "15.20",
     "Total": "15.20",
     "Customer Email": "ness.tide@gmail.com",
@@ -149,7 +142,7 @@
     "Subtotal": "17.20",
     "Total": "17.20",
     "Customer Email": "bateviki@gmail.com",
-    "Customer Name": "Viktória Bate"
+    "Customer Name": "Viktoria Bate"
   },
   {
     "Subtotal": "16.20",
@@ -434,14 +427,8 @@
     "Customer Name": "Peter Orsos Új"
   },
   {
-    "Subtotal": "6.40",
-    "Total": "6.40",
-    "Customer Email": "csikjafernando2013@gmail.com",
-    "Customer Name": "Zoltan Csikja"
-  },
-  {
-    "Subtotal": "20.40",
-    "Total": "20.40",
+    "Subtotal": "17.20",
+    "Total": "17.20",
     "Customer Email": "jenokalo88@gmail.com",
     "Customer Name": "60711 Jeno"
   },
@@ -1484,19 +1471,13 @@
     "Subtotal": "15.20",
     "Total": "15.20",
     "Customer Email": "marjanjanos1977@gmail.com",
-    "Customer Name": "Johan Marjan"
+    "Customer Name": "Mr Janos Marjan"
   },
   {
     "Subtotal": "19.30",
     "Total": "19.30",
     "Customer Email": "joseplorincz@gmail.com",
     "Customer Name": "Lorinc Jozsef"
-  },
-  {
-    "Subtotal": "17.20",
-    "Total": "17.20",
-    "Customer Email": "bateviki@gmail.com",
-    "Customer Name": "Viktória Bate"
   },
   {
     "Subtotal": "15.20",
@@ -1559,9 +1540,51 @@
     "Customer Name": "Ignac Balogh"
   },
   {
+    "Subtotal": "17.20",
+    "Total": "17.20",
+    "Customer Email": "mona007salem@gmail.com",
+    "Customer Name": "Szandra Armi"
+  },
+  {
     "Subtotal": "45.20",
     "Total": "45.20",
     "Customer Email": "peti.rozsnyai.uk@gmail.com",
     "Customer Name": "Rozsnyai Peti"
+  },
+  {
+    "Subtotal": "17.20",
+    "Total": "17.20",
+    "Customer Email": "henrietta_csiklya@icloud.com",
+    "Customer Name": "Henrietta Csiklya"
+  },
+  {
+    "Subtotal": "17.20",
+    "Total": "17.20",
+    "Customer Email": "csabagergelyfy0830@gmail.com",
+    "Customer Name": "Csaba Gergelyfy"
+  },
+  {
+    "Subtotal": "17.20",
+    "Total": "17.20",
+    "Customer Email": "Nikolics00@hotmail.com",
+    "Customer Name": "Sanyika Leyla Nikolics"
+  },
+  {
+    "Subtotal": "38.40",
+    "Total": "38.40",
+    "Customer Email": "bufddy@rogers.com",
+    "Customer Name": "Bara Gabor"
+  },
+  {
+    "Subtotal": "16.20",
+    "Total": "16.20",
+    "Customer Email": "patyesz0902@freemail.hu",
+    "Customer Name": "Pataki Zoltan"
+  },
+  {
+    "Subtotal": "17.20",
+    "Total": "17.20",
+    "Customer Email": "seebook74@googlemail.com",
+    "Customer Name": "Alexandra Sebok-Herczeg"
   }
 ]

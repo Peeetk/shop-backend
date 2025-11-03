@@ -5,41 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Payment Successful</title>
     <link rel="stylesheet" href="style.css" />
+    <style>
+      .date-box {
+        font-weight: bold;
+        font-size: 1.2rem;
+        margin: 10px 0;
+      }
+      #customer-name {
+        font-size: 1.1rem;
+        color: #0070f3;
+        font-weight: 600;
+      }
+    </style>
   </head>
   <body>
     <div class="message">
       <h1>✅ Payment Successful!</h1>
       <p>Thank you for your payment.</p>
       <p>Your payment was completed on:</p>
-      <p id="payment-date" class="date-box"></p>
+      <p id="payment-date" class="date-box">Loading...</p>
+      <p id="customer-name"></p>
 
       <a href="index.html">Return to Shop</a>
     </div>
 
     <script>
-      // Get current date
-      const now = new Date();
+      // ✅ Utility: get URL parameter
+      function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+      }
 
-      // Format as DD/MM/YYYY
-      const formatted = now.toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric"
-      });
+      const sessionId = getQueryParam("session_id");
 
-      window.addEventListener("load", () => {
-  const now = new Date().toLocaleString("en-GB");
-  fetch("https://shop-backend-dom2.onrender.com/notify-payment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ date: now }),
-  })
-    .then(res => res.json())
-    .then(data => console.log("✅ Notification sent:", data))
-    .catch(err => console.error("❌ Error sending notification:", err));
-});
-      // Insert into the page
-      document.getElementById("payment-date").textContent = formatted;
+      // ✅ If we have session_id, fetch the real Stripe data
+      if (sessionId) {
+        fetch(`https://shop-backend-dom2.onrender.com/checkout-session?session_id=${sessionId}`)
+          .then(res => res.json())
+          .then(async data => {
+            console.log("✅ Session data:", data);
+
+            if (data.error) throw new Error(data.error);
+
+            // Display real date and amount
+            document.getElementById("payment-date").textContent =
+              `${data.date} — £${data.amount_total.toFixed(2)} ${data.currency.toUpperCase()}`;
+
+            // ✅ Try to match a customer name from customers.json if exists
+            try {
+              const res = await fetch("customers.json");
+              const customers = await res.json();
+              const matched = customers.find(c =>
+                c["Total"] && Math.abs(parseFloat(c["Total"]) - data.amount_total) < 0.01
+              );
+
+              if (matched) {
+                document.getElementById("customer-name").textContent =
+                  `Payment by: ${matched["Customer Name"]}`;
+              }
+            } catch (e) {
+              console.warn("⚠️ Could not match customer:", e);
+            }
+
+            // ✅ Send email notification
+            fetch("https://shop-backend-dom2.onrender.com/notify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ date: data.date }),
+            })
+              .then(r => r.json())
+              .then(ok => console.log("📧 Notification sent:", ok))
+              .catch(err => console.error("❌ Email notify failed:", err));
+          })
+          .catch(err => {
+            console.error("❌ Error fetching session:", err);
+            document.getElementById("payment-date").textContent =
+              "Error retrieving payment details.";
+          });
+      } else {
+        // ✅ Fallback if no session_id present (manual test)
+        const now = new Date().toLocaleDateString("en-GB");
+        document.getElementById("payment-date").textContent = now;
+      }
     </script>
   </body>
 </html>
