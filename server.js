@@ -65,6 +65,7 @@ const session = await stripe.checkout.sessions.create({
 });
 
 
+
     console.log("✅ Stripe session created:", session.id);
     res.json({ id: session.id });
   } catch (err) {

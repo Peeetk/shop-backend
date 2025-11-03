@@ -142,15 +142,16 @@ cartButton.addEventListener("click", () => {
   console.log("🛒 Sending cart:", formattedCart); // for debugging
 
   // ✅ Send formatted cart to backend
-  fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-  cart: formattedCart,
-  customerName: searchInput.value || "Unknown Customer"
-})
-
+fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    cart: formattedCart,
+    customerName: selectedCustomerId
+      ? customers.find(c => c.id === selectedCustomerId)?.name || "Unknown Customer"
+      : searchInput.value || "Unknown Customer"
   })
+})
   .then(res => res.json())
   .then(data => {
     console.log("💬 Server returned:", data);
