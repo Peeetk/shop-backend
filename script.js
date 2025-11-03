@@ -145,7 +145,11 @@ cartButton.addEventListener("click", () => {
   fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cart: formattedCart })
+    body: JSON.stringify({
+  cart: formattedCart,
+  customerName: searchInput.value || "Unknown Customer"
+})
+
   })
   .then(res => res.json())
   .then(data => {

@@ -53,16 +53,17 @@ app.post("/create-checkout-session", async (req, res) => {
       };
     });
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      mode: "payment",
-      line_items,
-      metadata: {
-        customer_name: cart[0]?.name || "Unknown Customer",
-      },
-      success_url: `https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: "https://sondypayee.netlify.app/cancel.html",
-    });
+const session = await stripe.checkout.sessions.create({
+  payment_method_types: ["card"],
+  mode: "payment",
+  line_items,
+  metadata: {
+    customer_name: req.body.customerName || "Unknown Customer",
+  },
+  success_url: "https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
+  cancel_url: "https://sondypayee.netlify.app/cancel.html",
+});
+
 
     console.log("✅ Stripe session created:", session.id);
     res.json({ id: session.id });
