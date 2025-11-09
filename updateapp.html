@@ -3,11 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Payee</title>
+    <title>App Activation Payment</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    
     <header>
       <h1><a href="./index.html" class="home-link">Sonda SHOP</a></h1>
       <div>Cart: <span id="cart-count">0</span></div>
@@ -17,37 +16,84 @@
     </header>
 
     <main>
-    
-      <!-- Customer search -->
-    <div>
-      <input id="customer-search"/>
-      <ul id="customer-list"></ul>
-    </div>
-      <!-- Example products -->
-
-      
-     
-      <!-- Custom amount -->
-    
-        <button id="add-custom"></button>
+      <div>
+        <p>Ha lejárt az appod, itt tudod küldeni az árat. <br>
+          <strong>Ez nem a havi előfizetés!</strong></p>
       </div>
 
-          <div class="products">
-            <p>Ha lejart az appod, itt tudod kuldeni az arat. EZ NEM A HAVI ELOFIZETES!⬇️</p>
-      <div class="product" data-name="App eves aktivalas" data-price="3.20">
-        <img id="png" src="./tv-icon-13.png" alt="app" />
-        <div class="price">Tv App ÉveS Aktiválás £3.20</div>
-        <button class="add-to-cart">Add to Cart</button>
+      <!-- ✅ Payer name -->
+      <div class="checkout-box" style="margin-top: 20px">
+        <label for="payer-name">Neved kérem:</label>
+        <input
+          type="text"
+          id="payer-name"
+          placeholder="Írd be a neved"
+          required
+        />
       </div>
-    </div>
 
-      
+      <!-- ✅ App payment product -->
+      <div class="checkout-box" style="margin-top: 20px">
+        <div class="product" data-name="App éves aktiválás" data-price="3.20">
+          <img id="png" src="./tv-icon-13.png" alt="App" />
+          <div class="price">Tv App Éves Aktiválás £3.20</div>
+          <button id="add-to-cart">Hozzáadás a kosárhoz</button>
+        </div>
+      </div>
     </main>
 
-    <!-- Load Stripe.js first -->
+    <!-- ✅ Stripe.js -->
     <script src="https://js.stripe.com/v3/"></script>
 
-    <!-- Then load your script -->
-    <script src="script.js"></script>
+    <script>
+      const stripe = Stripe("pk_live_51N67KeFYbT9vhXCbG4eD7Zru8jC4gE6TJCRblelKS4h6TwEC75dKDUhq7cy9o2xee0OVC2EG2OOi7S6MLuGLqM5Q00rtiPwVw5");
+      let cart = [];
+
+      // Add the app product when clicked
+      document.getElementById("add-to-cart").addEventListener("click", () => {
+        const payerName = document.getElementById("payer-name").value.trim();
+
+        if (!payerName) {
+          alert("Kérlek, add meg a neved!");
+          return;
+        }
+
+        cart = [
+          {
+            name: payerName,
+            price: 3.20,
+            quantity: 1,
+          },
+        ];
+
+        alert(`App aktiválás (£3.20) hozzáadva ${payerName} névvel!`);
+      });
+
+      // Checkout button
+      document.getElementById("cart-button").addEventListener("click", () => {
+        if (cart.length === 0) {
+          alert("A kosár üres!");
+          return;
+        }
+
+        console.log("🛒 Sending cart:", cart);
+
+        fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cart,
+            customerName: cart[0].name, // send the user's name
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            console.log("💬 Server returned:", data);
+            if (!data.id) throw new Error("Missing session ID from server!");
+            return stripe.redirectToCheckout({ sessionId: data.id });
+          })
+          .catch((err) => alert("Error: " + err.message));
+      });
+    </script>
   </body>
 </html>

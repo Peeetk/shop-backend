@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    
     <header>
       <h1><a href="./index.html" class="home-link">Sonda SHOP</a></h1>
       <div>Cart: <span id="cart-count">0</span></div>
@@ -17,20 +16,27 @@
     </header>
 
     <main>
-     
-      <!-- Customer search -->
-    <div>
-      <input type="text" id="customer-search"/>
-      
-    </div>
-      <!-- Example products -->
-
-      
       <div>
-        <p>Ha elso regisztraló vagy. Esetleg, ha mas összeget szeretnél küldeni <em> <strong>(egyeztetés után)</strong></em>, akkor használd az ⬇️(Összeg) mezőt.⬇️</p>
+        <p>
+          Ha első regisztráló vagy, vagy más összeget szeretnél küldeni
+          <em><strong>(egyeztetés után)</strong></em>,
+          használd az ⬇️ (Összeg) mezőt. ⬇️
+        </p>
       </div>
-      <!-- Custom amount -->
-      <div class="checkout-box" style="margin-top: 30px">
+
+      <!-- ✅ Name input -->
+      <div class="checkout-box" style="margin-top: 20px">
+        <label for="payer-name">Neved kérem:</label>
+        <input
+          type="text"
+          id="payer-name"
+          placeholder="Írd be a neved"
+          required
+        />
+      </div>
+
+      <!-- ✅ Custom amount input -->
+      <div class="checkout-box" style="margin-top: 20px">
         <input
           type="number"
           id="custom-amount"
@@ -40,17 +46,65 @@
         />
         <button id="add-custom">Összeg Hozzáadása</button>
       </div>
-
-    
-    </div>
-
-      
     </main>
 
-    <!-- Load Stripe.js first -->
+    <!-- ✅ Stripe.js -->
     <script src="https://js.stripe.com/v3/"></script>
 
-    <!-- Then load your script -->
-    <script src="script.js"></script>
+    <script>
+      const stripe = Stripe("pk_live_51N67KeFYbT9vhXCbG4eD7Zru8jC4gE6TJCRblelKS4h6TwEC75dKDUhq7cy9o2xee0OVC2EG2OOi7S6MLuGLqM5Q00rtiPwVw5");
+      let cart = [];
+
+      document.getElementById("add-custom").addEventListener("click", () => {
+        const amount = parseFloat(document.getElementById("custom-amount").value);
+        const payerName = document.getElementById("payer-name").value.trim();
+
+        if (isNaN(amount) || amount <= 0) {
+          alert("Kérlek, adj meg egy érvényes összeget!");
+          return;
+        }
+
+        if (!payerName) {
+          alert("Kérlek, add meg a neved!");
+          return;
+        }
+
+        // Add item to cart
+        cart = [
+          {
+            name: payerName, // ✅ this is the payer's name
+            price: amount,
+            quantity: 1,
+          },
+        ];
+
+        alert(`£${amount.toFixed(2)} hozzáadva ${payerName} névvel!`);
+      });
+
+      document.getElementById("cart-button").addEventListener("click", () => {
+        if (cart.length === 0) {
+          alert("A kosár üres!");
+          return;
+        }
+
+        console.log("🛒 Sending cart:", cart);
+
+        fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cart,
+            customerName: cart[0].name, // ✅ send name to backend
+          }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            console.log("💬 Server returned:", data);
+            if (!data.id) throw new Error("Missing session ID from server!");
+            return stripe.redirectToCheckout({ sessionId: data.id });
+          })
+          .catch((err) => alert("Error: " + err.message));
+      });
+    </script>
   </body>
 </html>

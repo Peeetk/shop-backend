@@ -44,7 +44,11 @@ header {
   text-align:center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   width:auto;
-  
+    display: flex;
+  flex-direction: column;
+  align-items: center;      /* ✅ centers horizontally */
+  justify-content: center;  /* ✅ centers vertically */
+  text-align: center;
 }
 
 .product:hover {
@@ -59,6 +63,7 @@ header {
   padding: 20px;
   width: auto;
   text-align: center;
+  align-items: center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -99,6 +104,7 @@ button:hover {
   margin: 10px 0;
   width:150px;
   height:auto;
+  text-align: center;
 }
 
 #png {
@@ -237,17 +243,20 @@ button {
 }
 
 p {
-  border: 2px solid #333;       /* outline the box */
-  border-radius: 10px;          /* rounded corners */
-                /* space inside the box */
-  background-color: #f8f8f8;    /* light background */
-  width:auto; 
-           /* shrink box to content width */
-              /* optional limit */
-  margin: 10px auto;           /* center horizontally */
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* optional shadow */
-  font-size: 18px;
+  display: inline-block;          /* ✅ make width fit only the text */
+  background-color: red;          /* or your color */
+  color: white;
+  padding: 5px 10px;              /* some space inside */
+  border-radius: 8px;             /* optional */
+  font-weight: bold;
+  margin: 10px auto;              /* centers horizontally */
 }
+
+p.centered {
+  display: flex;
+  justify-content: center;
+}
+
 
 .list-box {
   border: 7px solid red;
@@ -386,4 +395,48 @@ p {
 .highlight {
   color: #0070f3;
   font-weight: 600;
+}
+#payer-name {
+  display: block;
+  width: 80%;
+  max-width: 400px;
+  margin: 10px auto;
+  padding: 10px;
+  font-size: 18px;
+  border: 2px solid #0070f3;
+  border-radius: 8px;
+  outline: none;
+  background-color: #f9f9f9;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+#payer-name:focus {
+  border-color: #005bb5;
+  box-shadow: 0 0 10px rgba(0, 112, 243, 0.3);
+  background-color: #fff;
+}
+label[for="payer-name"] {
+  background-color: #000;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 8px;
+  display: inline-block;
+  font-weight: bold;
+  font-size: 18px;
+  box-shadow: 0 2px 6px rgba(255,255,255,0.2); /* subtle glow */
+}
+
+/* Fix app product alignment */
+
+
+.product .price {
+  text-align: center;
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+.product img {
+  display: block;
+  margin: 0 auto 10px auto; /* ✅ centers image and adds space below */
 }
