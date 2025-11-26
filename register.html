@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Regisztráció - Sonda SHOP</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      .auth-wrapper {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .auth-box {
+        background: rgba(255, 255, 255, 0.9);
+        padding: 24px 28px;
+        border-radius: 16px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+        max-width: 320px;
+        width: 100%;
+        text-align: center;
+      }
+      .auth-box h1 {
+        margin-bottom: 8px;
+      }
+      .auth-box input {
+        width: 100%;
+        padding: 8px 10px;
+        margin: 8px 0 12px 0;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+      }
+      .auth-error {
+        color: red;
+        margin-top: 4px;
+        font-size: 0.9rem;
+      }
+      .auth-success {
+        color: green;
+        margin-top: 4px;
+        font-size: 0.9rem;
+      }
+      .auth-link {
+        margin-top: 10px;
+        font-size: 0.9rem;
+      }
+      .auth-link a {
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="auth-wrapper">
+      <div class="auth-box">
+        <h1>Sonda SHOP</h1>
+        <p>Regisztráció új felhasználóknak.</p>
+
+        <form id="register-form">
+          <input
+            type="email"
+            id="email"
+            placeholder="Email cím"
+            required
+          />
+          <input
+            type="password"
+            id="password"
+            placeholder="Jelszó (min. 6 karakter)"
+            required
+          />
+          <input
+            type="password"
+            id="password2"
+            placeholder="Jelszó megerősítése"
+            required
+          />
+          <button type="submit">Regisztráció</button>
+          <div id="reg-error" class="auth-error"></div>
+          <div id="reg-success" class="auth-success"></div>
+        </form>
+
+        <div class="auth-link">
+          Már van fiókod?
+          <a href="login.html">Jelentkezz be!</a>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const BACKEND_URL = "https://shop-backend-dom2.onrender.com";
+
+      const form = document.getElementById("register-form");
+      const emailInput = document.getElementById("email");
+      const pass1 = document.getElementById("password");
+      const pass2 = document.getElementById("password2");
+      const errorBox = document.getElementById("reg-error");
+      const successBox = document.getElementById("reg-success");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorBox.textContent = "";
+        successBox.textContent = "";
+
+        const email = emailInput.value.trim();
+        const p1 = pass1.value;
+        const p2 = pass2.value;
+
+        if (p1 !== p2) {
+          errorBox.textContent = "A két jelszó nem egyezik.";
+          return;
+        }
+
+        try {
+          const res = await fetch(`${BACKEND_URL}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password: p1 }),
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || "Ismeretlen hiba.");
+          }
+
+          successBox.textContent = "Sikeres regisztráció! Most már bejelentkezhetsz.";
+          // optional: auto-redirect after a short delay
+          setTimeout(() => {
+            window.location.href = "login.html";
+          }, 1500);
+        } catch (err) {
+          errorBox.textContent = err.message;
+        }
+      });
+    </script>
+  </body>
+</html>

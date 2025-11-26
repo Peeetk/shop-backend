@@ -7,6 +7,17 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+     <script>
+    (function () {
+      const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+      if (!isLoggedIn) {
+        localStorage.setItem("postLoginRedirect", "index.html"); // change to this page's file name
+        window.location.href = "login.html";
+      }
+    })();
+  </script>
+
+
     
     <header>
       <h1><a href="./index.html" class="home-link">Sonda SHOP</a></h1>

@@ -440,3 +440,76 @@ label[for="payer-name"] {
   display: block;
   margin: 0 auto 10px auto; /* ✅ centers image and adds space below */
 }
+/* ----- LOGIN PAGE STYLES ----- */
+
+.login-main {
+  min-height: calc(100vh - 80px); /* header height-ish */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  max-width: 380px;
+  width: 100%;
+  padding: 24px 22px 28px;
+  text-align: center;
+}
+
+.login-card h2 {
+  margin-bottom: 10px;
+}
+
+.login-info {
+  font-size: 0.95rem;
+  margin-bottom: 18px;
+  color: #333;
+  background: transparent;  /* override your red <p> style */
+  padding: 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.login-label {
+  font-weight: bold;
+  font-size: 0.95rem;
+  color: #222;
+}
+
+.login-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: #0070f3;
+  box-shadow: 0 0 0 2px rgba(0, 112, 243, 0.15);
+}
+
+.login-button {
+  margin-top: 8px;
+  width: 100%;
+  padding: 10px 0;
+  font-size: 1rem;
+}
+
+.login-error {
+  margin-top: 12px;
+  color: #ff4444;
+  display: none;
+  background: transparent;  /* override red box */
+  padding: 0;
+}

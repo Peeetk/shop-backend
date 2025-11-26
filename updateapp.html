@@ -7,7 +7,16 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <header>
+     <script>
+    (function () {
+      const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+      if (!isLoggedIn) {
+        localStorage.setItem("postLoginRedirect", "index.html"); // change to this page's file name
+        window.location.href = "login.html";
+      }
+    })();
+  </script>
+
       <h1><a href="./index.html" class="home-link">Sonda SHOP</a></h1>
       <div>Cart: <span id="cart-count">0</span></div>
       <div style="margin-top: 30px">
