@@ -17,7 +17,10 @@ const app = express();
 
 // ---------- USER AUTH HELPERS ----------
 
+// ---------- USER AUTH HELPERS ----------
+
 const USERS_FILE = path.join(__dirname, "users.json");
+const CUSTOMERS_FILE = path.join(__dirname, "customers.json");
 
 async function readUsers() {
   try {
@@ -52,6 +55,22 @@ function verifyPassword(password, stored) {
   );
 }
 
+// 👉 NEW: read allowed customer emails from customers.json
+async function readCustomerEmails() {
+  try {
+    const data = await fs.readFile(CUSTOMERS_FILE, "utf8");
+    const list = JSON.parse(data);
+
+    return list
+      .map((item) => (item["Customer Email"] || "").trim().toLowerCase())
+      .filter(Boolean); // remove empty / invalid values
+  } catch (err) {
+    if (err.code === "ENOENT") return []; // no customers file found
+    throw err;
+  }
+}
+
+
 // ---------- MIDDLEWARE / STRIPE SETUP ----------
 
 // ✅ Enable CORS for your Netlify + local frontend
@@ -83,6 +102,7 @@ app.use(express.json());
 // ---------- AUTH ROUTES ----------
 
 // 🧾 Register new user
+// 🧾 Register new user
 app.post("/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -98,9 +118,22 @@ app.post("/register", async (req, res) => {
         });
     }
 
+    // 🔐 NEW: only allow emails that are present in customers.json
+    const allowedEmails = await readCustomerEmails();
+    const emailLower = email.trim().toLowerCase();
+
+    if (!allowedEmails.includes(emailLower)) {
+      return res.status(400).json({
+        error:
+          "Ezzel az email címmel nem lehet regisztrálni. " +
+          "Kérjük, használd azt az email címet, amellyel az előfizetés készült, vagy vedd fel velünk a kapcsolatot.",
+      });
+    }
+
+    // Check if user already exists
     const users = await readUsers();
     const exists = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase()
+      (u) => u.email.toLowerCase() === emailLower
     );
     if (exists) {
       return res
@@ -110,7 +143,7 @@ app.post("/register", async (req, res) => {
 
     const user = {
       id: Date.now(),
-      email,
+      email: emailLower,
       passwordHash: hashPassword(password),
       createdAt: new Date().toISOString(),
     };
@@ -126,6 +159,7 @@ app.post("/register", async (req, res) => {
       .json({ error: "Szerver hiba regisztráció közben." });
   }
 });
+
 
 // 🔑 Login existing user
 app.post("/login", async (req, res) => {
