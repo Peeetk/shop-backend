@@ -52,8 +52,6 @@ function verifyPassword(password, stored) {
   );
 }
 
-
-
 // ---------- MIDDLEWARE / STRIPE SETUP ----------
 
 // ✅ Enable CORS for your Netlify + local frontend
