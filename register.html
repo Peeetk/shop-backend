@@ -35,11 +35,13 @@
         color: red;
         margin-top: 4px;
         font-size: 0.9rem;
+        min-height: 1.2em;
       }
       .auth-success {
         color: green;
         margin-top: 4px;
         font-size: 0.9rem;
+        min-height: 1.2em;
       }
       .auth-link {
         margin-top: 10px;
@@ -123,8 +125,8 @@
             throw new Error(data.error || "Ismeretlen hiba.");
           }
 
-          successBox.textContent = "Sikeres regisztráció! Most már bejelentkezhetsz.";
-          // optional: auto-redirect after a short delay
+          successBox.textContent =
+            "Sikeres regisztráció! Most már bejelentkezhetsz.";
           setTimeout(() => {
             window.location.href = "login.html";
           }, 1500);

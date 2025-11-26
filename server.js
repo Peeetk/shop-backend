@@ -154,6 +154,131 @@ app.post("/login", async (req, res) => {
   }
 });
 
+// 🔐 Change password (user knows current password)
+app.post("/change-password", async (req, res) => {
+  try {
+    const { email, oldPassword, newPassword } = req.body;
+
+    if (!email || !oldPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "Email, régi és új jelszó kötelező." });
+    }
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({
+          error: "Az új jelszónak legalább 6 karakter hosszúnak kell lennie.",
+        });
+    }
+
+    const users = await readUsers();
+    const index = users.findIndex(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
+    if (index === -1) {
+      return res.status(404).json({ error: "Felhasználó nem található." });
+    }
+
+    const user = users[index];
+
+    if (!verifyPassword(oldPassword, user.passwordHash)) {
+      return res.status(401).json({ error: "Hibás régi jelszó." });
+    }
+
+    users[index].passwordHash = hashPassword(newPassword);
+    await writeUsers(users);
+
+    res.json({ success: true, message: "Jelszó sikeresen megváltoztatva." });
+  } catch (err) {
+    console.error("❌ Change password error:", err);
+    res.status(500).json({ error: "Szerver hiba jelszóváltás közben." });
+  }
+});
+
+// ❌ Delete account (user confirms with password)
+app.post("/delete-account", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email és jelszó kötelező." });
+    }
+
+    const users = await readUsers();
+    const index = users.findIndex(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
+    if (index === -1) {
+      return res.status(404).json({ error: "Felhasználó nem található." });
+    }
+
+    const user = users[index];
+    if (!verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ error: "Hibás jelszó." });
+    }
+
+    users.splice(index, 1);
+    await writeUsers(users);
+
+    res.json({ success: true, message: "Fiók törölve." });
+  } catch (err) {
+    console.error("❌ Delete account error:", err);
+    res.status(500).json({ error: "Szerver hiba fiók törlése közben." });
+  }
+});
+
+// 🔁 Forgot password – generate temp password and send email
+app.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email kötelező." });
+    }
+
+    const users = await readUsers();
+    const index = users.findIndex(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    // Always respond success to avoid leaking which emails exist
+    if (index === -1) {
+      return res.json({
+        success: true,
+        message:
+          "Ha létezik ilyen email cím, küldtünk egy új jelszót.",
+      });
+    }
+
+    // Generate simple temporary password
+    const tempPassword = crypto.randomBytes(4).toString("hex"); // 8 karakter
+
+    users[index].passwordHash = hashPassword(tempPassword);
+    await writeUsers(users);
+
+    // Send email with new password
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Új ideiglenes jelszó - Sonda SHOP",
+      text:
+        `Új ideiglenes jelszót kértél a Sonda SHOP oldalán.\n\n` +
+        `Ideiglenes jelszavad: ${tempPassword}\n\n` +
+        `Jelentkezz be ezzel a jelszóval, majd a fiókban változtasd meg egy saját jelszóra.`,
+    });
+
+    res.json({
+      success: true,
+      message:
+        "Ha létezik ilyen email cím, küldtünk egy új jelszót.",
+    });
+  } catch (err) {
+    console.error("❌ Forgot password error:", err);
+    res.status(500).json({ error: "Szerver hiba jelszó visszaállítás közben." });
+  }
+});
+
 // ---------- STRIPE CHECKOUT ----------
 
 app.post("/create-checkout-session", async (req, res) => {
@@ -288,7 +413,6 @@ app.post("/notify-payment", async (req, res) => {
   }
 });
 
-// ---------- START SERVER ----------
-
+// ✅ Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
