@@ -6,21 +6,72 @@ import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
 import nodemailer from "nodemailer";
+import fs from "fs/promises";
+import crypto from "crypto";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env") }); // load .env from this folder
 
 const app = express();
 
-// ✅ Enable CORS for your Netlify frontend
-app.use(cors({
-  origin: "https://sondypayee.netlify.app", // your live frontend URL
-  methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type"],
-}));
+// ---------- USER AUTH HELPERS ----------
+
+const USERS_FILE = path.join(__dirname, "users.json");
+
+async function readUsers() {
+  try {
+    const data = await fs.readFile(USERS_FILE, "utf8");
+    return JSON.parse(data);
+  } catch (err) {
+    if (err.code === "ENOENT") return []; // no file yet = no users
+    throw err;
+  }
+}
+
+async function writeUsers(users) {
+  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+function hashPassword(password, salt) {
+  salt = salt || crypto.randomBytes(16).toString("hex");
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 10000, 64, "sha512")
+    .toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, storedHash] = stored.split(":");
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 10000, 64, "sha512")
+    .toString("hex");
+  return crypto.timingSafeEqual(
+    Buffer.from(storedHash, "hex"),
+    Buffer.from(hash, "hex")
+  );
+}
+
+// ---------- MIDDLEWARE / STRIPE SETUP ----------
+
+// ✅ Enable CORS for your Netlify + local frontend
+app.use(
+  cors({
+    origin: [
+      "https://sondypayee.netlify.app",
+      "http://127.0.0.1:5500",
+      "http://localhost:5500",
+    ],
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
 
 // ✅ Confirm that the Stripe key is loaded (for debugging)
-console.log("Stripe key detected:", process.env.STRIPE_SECRET_KEY ? "✅ Loaded" : "❌ Not found");
+console.log(
+  "Stripe key detected:",
+  process.env.STRIPE_SECRET_KEY ? "✅ Loaded" : "❌ Not found"
+);
 
 // ✅ Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -29,7 +80,82 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
-// 💳 Create checkout session
+// ---------- AUTH ROUTES ----------
+
+// 🧾 Register new user
+app.post("/register", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email és jelszó kötelező." });
+    }
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({
+          error: "A jelszónak legalább 6 karakter hosszúnak kell lennie.",
+        });
+    }
+
+    const users = await readUsers();
+    const exists = users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
+    if (exists) {
+      return res
+        .status(400)
+        .json({ error: "Ezzel az email címmel már van fiók." });
+    }
+
+    const user = {
+      id: Date.now(),
+      email,
+      passwordHash: hashPassword(password),
+      createdAt: new Date().toISOString(),
+    };
+
+    users.push(user);
+    await writeUsers(users);
+
+    res.json({ success: true, message: "Sikeres regisztráció!" });
+  } catch (err) {
+    console.error("❌ Register error:", err);
+    res
+      .status(500)
+      .json({ error: "Szerver hiba regisztráció közben." });
+  }
+});
+
+// 🔑 Login existing user
+app.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email és jelszó kötelező." });
+    }
+
+    const users = await readUsers();
+    const user = users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ error: "Hibás email vagy jelszó." });
+    }
+
+    res.json({ success: true, email: user.email });
+  } catch (err) {
+    console.error("❌ Login error:", err);
+    res
+      .status(500)
+      .json({ error: "Szerver hiba bejelentkezés közben." });
+  }
+});
+
+// ---------- STRIPE CHECKOUT ----------
+
 app.post("/create-checkout-session", async (req, res) => {
   try {
     const cart = req.body.cart || [];
@@ -37,9 +163,10 @@ app.post("/create-checkout-session", async (req, res) => {
 
     if (!cart.length) return res.status(400).json({ error: "Cart is empty" });
 
-    const line_items = cart.map(i => {
+    const line_items = cart.map((i) => {
       let amount = parseFloat(i.price ?? i.amount);
-      if (isNaN(amount)) amount = Number(String(i.price ?? i.amount).replace(",", "."));
+      if (isNaN(amount))
+        amount = Number(String(i.price ?? i.amount).replace(",", "."));
       let unit_amount = Math.round(amount * 100);
       if (unit_amount < 30) unit_amount = 30;
 
@@ -53,18 +180,17 @@ app.post("/create-checkout-session", async (req, res) => {
       };
     });
 
-const session = await stripe.checkout.sessions.create({
-  payment_method_types: ["card"],
-  mode: "payment",
-  line_items,
-  metadata: {
-    customer_name: req.body.customerName || "Unknown Customer",
-  },
-  success_url: "https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
-  cancel_url: "https://sondypayee.netlify.app/cancel.html",
-});
-
-
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items,
+      metadata: {
+        customer_name: req.body.customerName || "Unknown Customer",
+      },
+      success_url:
+        "https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://sondypayee.netlify.app/cancel.html",
+    });
 
     console.log("✅ Stripe session created:", session.id);
     res.json({ id: session.id });
@@ -84,7 +210,9 @@ app.get("/session/:id", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Failed to fetch session:", err.message);
-    res.status(500).json({ error: "Failed to retrieve session details." });
+    res
+      .status(500)
+      .json({ error: "Failed to retrieve session details." });
   }
 });
 
@@ -117,7 +245,10 @@ app.get("/checkout-session", async (req, res) => {
 
     res.json({
       id: session.id,
-      customer_name: session.metadata?.customer_name || session.customer_details?.name || "Unknown",
+      customer_name:
+        session.metadata?.customer_name ||
+        session.customer_details?.name ||
+        "Unknown",
       amount_total: (session.amount_total / 100).toFixed(2),
       currency: session.currency.toUpperCase(),
       date: new Date(session.created * 1000).toLocaleDateString("en-GB"),
@@ -128,12 +259,13 @@ app.get("/checkout-session", async (req, res) => {
   }
 });
 
-// ✅ Email notification setup
+// ---------- EMAIL NOTIFICATION (optional) ----------
+
 const transporter = nodemailer.createTransport({
-  service: "gmail", // You can replace with "hotmail", etc.
+  service: "gmail", // or other
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // app password or mail token
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -143,7 +275,7 @@ app.post("/notify-payment", async (req, res) => {
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "your.email@example.com", // 👈 replace with your actual email
+      to: "your.email@example.com", // 👈 put your real email
       subject: "💰 New Payment Completed",
       text: `A payment of £${amount_total} was made by ${customer_name} on ${date}.`,
     });
@@ -156,6 +288,7 @@ app.post("/notify-payment", async (req, res) => {
   }
 });
 
-// ✅ Start the server
+// ---------- START SERVER ----------
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
