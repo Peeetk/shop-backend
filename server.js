@@ -15,9 +15,7 @@ dotenv.config({ path: path.join(__dirname, ".env") }); // load .env from this fo
 
 const app = express();
 
-// ---------- USER AUTH HELPERS ----------
-
-// ---------- USER AUTH HELPERS ----------
+// ---------- USER / CUSTOMER HELPERS ----------
 
 const USERS_FILE = path.join(__dirname, "users.json");
 const CUSTOMERS_FILE = path.join(__dirname, "customers.json");
@@ -27,7 +25,7 @@ async function readUsers() {
     const data = await fs.readFile(USERS_FILE, "utf8");
     return JSON.parse(data);
   } catch (err) {
-    if (err.code === "ENOENT") return []; // no file yet = no users
+    if (err.code === "ENOENT") return [];
     throw err;
   }
 }
@@ -49,31 +47,30 @@ function verifyPassword(password, stored) {
   const hash = crypto
     .pbkdf2Sync(password, salt, 10000, 64, "sha512")
     .toString("hex");
+
   return crypto.timingSafeEqual(
     Buffer.from(storedHash, "hex"),
     Buffer.from(hash, "hex")
   );
 }
 
-// 👉 NEW: read allowed customer emails from customers.json
+// read all allowed customer emails from customers.json
 async function readCustomerEmails() {
   try {
     const data = await fs.readFile(CUSTOMERS_FILE, "utf8");
     const list = JSON.parse(data);
-
     return list
       .map((item) => (item["Customer Email"] || "").trim().toLowerCase())
-      .filter(Boolean); // remove empty / invalid values
+      .filter(Boolean);
   } catch (err) {
-    if (err.code === "ENOENT") return []; // no customers file found
+    if (err.code === "ENOENT") return [];
     throw err;
   }
 }
 
+// ---------- MIDDLEWARE / STRIPE / EMAIL ----------
 
-// ---------- MIDDLEWARE / STRIPE SETUP ----------
-
-// ✅ Enable CORS for your Netlify + local frontend
+// CORS for Netlify + local dev
 app.use(
   cors({
     origin: [
@@ -86,23 +83,37 @@ app.use(
   })
 );
 
-// ✅ Confirm that the Stripe key is loaded (for debugging)
+// Stripe
 console.log(
   "Stripe key detected:",
   process.env.STRIPE_SECRET_KEY ? "✅ Loaded" : "❌ Not found"
 );
-
-// ✅ Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ✅ Middleware
+// Static + JSON parsing
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
+// Nodemailer transporter
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+transporter.verify((err, success) => {
+  if (err) {
+    console.error("❌ Email transporter error:", err);
+  } else {
+    console.log("✅ Email transporter ready");
+  }
+});
+
 // ---------- AUTH ROUTES ----------
 
-// 🧾 Register new user
-// 🧾 Register new user
+// 🧾 Register – ONLY emails from customers.json can register
 app.post("/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -111,30 +122,25 @@ app.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Email és jelszó kötelező." });
     }
     if (password.length < 6) {
-      return res
-        .status(400)
-        .json({
-          error: "A jelszónak legalább 6 karakter hosszúnak kell lennie.",
-        });
+      return res.status(400).json({
+        error: "A jelszónak legalább 6 karakter hosszúnak kell lennie.",
+      });
     }
 
-    // 🔐 NEW: only allow emails that are present in customers.json
-    const allowedEmails = await readCustomerEmails();
     const emailLower = email.trim().toLowerCase();
 
+    // check allowed emails from customers.json
+    const allowedEmails = await readCustomerEmails();
     if (!allowedEmails.includes(emailLower)) {
       return res.status(400).json({
         error:
           "Ezzel az email címmel nem lehet regisztrálni. " +
-          "Kérjük, használd azt az email címet, amellyel az előfizetés készült, vagy vedd fel velünk a kapcsolatot.",
+          "Használd azt az email címet, amellyel az előfizetés készült, vagy vedd fel velünk a kapcsolatot.",
       });
     }
 
-    // Check if user already exists
     const users = await readUsers();
-    const exists = users.find(
-      (u) => u.email.toLowerCase() === emailLower
-    );
+    const exists = users.find((u) => u.email.toLowerCase() === emailLower);
     if (exists) {
       return res
         .status(400)
@@ -154,14 +160,11 @@ app.post("/register", async (req, res) => {
     res.json({ success: true, message: "Sikeres regisztráció!" });
   } catch (err) {
     console.error("❌ Register error:", err);
-    res
-      .status(500)
-      .json({ error: "Szerver hiba regisztráció közben." });
+    res.status(500).json({ error: "Szerver hiba regisztráció közben." });
   }
 });
 
-
-// 🔑 Login existing user
+// 🔑 Login
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -188,7 +191,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// 🔐 Change password (user knows current password)
+// 🔐 Change password
 app.post("/change-password", async (req, res) => {
   try {
     const { email, oldPassword, newPassword } = req.body;
@@ -199,11 +202,9 @@ app.post("/change-password", async (req, res) => {
         .json({ error: "Email, régi és új jelszó kötelező." });
     }
     if (newPassword.length < 6) {
-      return res
-        .status(400)
-        .json({
-          error: "Az új jelszónak legalább 6 karakter hosszúnak kell lennie.",
-        });
+      return res.status(400).json({
+        error: "Az új jelszónak legalább 6 karakter hosszúnak kell lennie.",
+      });
     }
 
     const users = await readUsers();
@@ -230,7 +231,7 @@ app.post("/change-password", async (req, res) => {
   }
 });
 
-// ❌ Delete account (user confirms with password)
+// ❌ Delete account
 app.post("/delete-account", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -276,7 +277,7 @@ app.post("/forgot-password", async (req, res) => {
       (u) => u.email.toLowerCase() === email.toLowerCase()
     );
 
-    // Always respond success to avoid leaking which emails exist
+    // Always respond generically if user not found
     if (index === -1) {
       return res.json({
         success: true,
@@ -285,13 +286,10 @@ app.post("/forgot-password", async (req, res) => {
       });
     }
 
-    // Generate simple temporary password
-    const tempPassword = crypto.randomBytes(4).toString("hex"); // 8 karakter
-
+    const tempPassword = crypto.randomBytes(4).toString("hex"); // 8 chars
     users[index].passwordHash = hashPassword(tempPassword);
     await writeUsers(users);
 
-    // Send email with new password
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: email,
@@ -302,6 +300,8 @@ app.post("/forgot-password", async (req, res) => {
         `Jelentkezz be ezzel a jelszóval, majd a fiókban változtasd meg egy saját jelszóra.`,
     });
 
+    console.log("📧 Temporary password email sent to:", email);
+
     res.json({
       success: true,
       message:
@@ -309,7 +309,9 @@ app.post("/forgot-password", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Forgot password error:", err);
-    res.status(500).json({ error: "Szerver hiba jelszó visszaállítás közben." });
+    res.status(500).json({
+      error: "Szerver hiba jelszó visszaállítás közben.",
+    });
   }
 });
 
@@ -359,7 +361,7 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-// ✅ Test Stripe connection
+// simple test route for session by id
 app.get("/session/:id", async (req, res) => {
   try {
     const session = await stripe.checkout.sessions.retrieve(req.params.id);
@@ -375,12 +377,11 @@ app.get("/session/:id", async (req, res) => {
   }
 });
 
-// ✅ Root route
+// root + debug
 app.get("/", (req, res) => {
   res.send("✅ Stripe backend is running successfully!");
 });
 
-// ✅ Debug route
 app.get("/debug-env", (req, res) => {
   res.json({
     stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
@@ -390,7 +391,7 @@ app.get("/debug-env", (req, res) => {
   });
 });
 
-// ✅ Fetch checkout session details (used by success.html)
+// used by success.html to show payment info
 app.get("/checkout-session", async (req, res) => {
   try {
     const { session_id } = req.query;
@@ -418,15 +419,7 @@ app.get("/checkout-session", async (req, res) => {
   }
 });
 
-// ---------- EMAIL NOTIFICATION (optional) ----------
-
-const transporter = nodemailer.createTransport({
-  service: "gmail", // or other
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+// ---------- PAYMENT NOTIFICATION EMAIL (optional) ----------
 
 app.post("/notify-payment", async (req, res) => {
   try {
@@ -434,12 +427,12 @@ app.post("/notify-payment", async (req, res) => {
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "your.email@example.com", // 👈 put your real email
+      to: "your.email@example.com", // change this to your real email
       subject: "💰 New Payment Completed",
       text: `A payment of £${amount_total} was made by ${customer_name} on ${date}.`,
     });
 
-    console.log("📧 Email sent successfully!");
+    console.log("📧 Payment notification email sent!");
     res.json({ success: true });
   } catch (err) {
     console.error("❌ Email sending failed:", err);
@@ -447,6 +440,7 @@ app.post("/notify-payment", async (req, res) => {
   }
 });
 
-// ✅ Start the server
+// ---------- START SERVER ----------
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
