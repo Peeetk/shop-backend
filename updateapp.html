@@ -17,6 +17,7 @@
     })();
   </script>
 
+ <header>
       <h1><a href="./index.html" class="home-link">Sonda SHOP</a></h1>
       <div>Cart: <span id="cart-count">0</span></div>
       <div style="margin-top: 30px">
@@ -52,57 +53,81 @@
     </main>
 
     <!-- ✅ Stripe.js -->
-    <script src="https://js.stripe.com/v3/"></script>
-
     <script>
-      const stripe = Stripe("pk_live_51N67KeFYbT9vhXCbG4eD7Zru8jC4gE6TJCRblelKS4h6TwEC75dKDUhq7cy9o2xee0OVC2EG2OOi7S6MLuGLqM5Q00rtiPwVw5");
-      let cart = [];
+  const stripe = Stripe(
+    "pk_live_51N67KeFYbT9vhXCbG4eD7Zru8jC4gE6T...elKS4h6TwEC75dKDUhq7cy9o2xee0OVC2EG2OOi7S6MLuGLqM5Q00rtiPwVw5"
+  );
+  let cart = [];
 
-      // Add the app product when clicked
-      document.getElementById("add-to-cart").addEventListener("click", () => {
-        const payerName = document.getElementById("payer-name").value.trim();
+  // 🧮 Update cart counter in header
+  function updateCartCount() {
+    const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const el = document.getElementById("cart-count");
+    if (el) el.textContent = totalQty;
+  }
 
-        if (!payerName) {
-          alert("Kérlek, add meg a neved!");
-          return;
-        }
+  // ➕ Add the app product when clicked
+  document.getElementById("add-to-cart").addEventListener("click", () => {
+    const payerName = document.getElementById("payer-name").value.trim();
 
-        cart = [
-          {
-            name: payerName,
-            price: 3.20,
-            quantity: 1,
-          },
-        ];
+    if (!payerName) {
+      alert("Kérlek, add meg a neved!");
+      return;
+    }
 
-        alert(`App aktiválás (£3.20) hozzáadva ${payerName} névvel!`);
+    const price = 3.2;
+
+    if (cart.length === 0) {
+      // first time: create item
+      cart.push({
+        name: payerName,
+        price,
+        quantity: 1,
       });
+    } else {
+      // we only have one product; just increase quantity
+      cart[0].quantity += 1;
+      cart[0].name = payerName; // optional: keep latest name
+    }
 
-      // Checkout button
-      document.getElementById("cart-button").addEventListener("click", () => {
-        if (cart.length === 0) {
-          alert("A kosár üres!");
-          return;
-        }
+    updateCartCount();
 
-        console.log("🛒 Sending cart:", cart);
+    alert(
+      `App aktiválás (£${price.toFixed(
+        2
+      )}) hozzáadva ${payerName} névvel!`
+    );
+  });
 
-        fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            cart,
-            customerName: cart[0].name, // send the user's name
-          }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            console.log("💬 Server returned:", data);
-            if (!data.id) throw new Error("Missing session ID from server!");
-            return stripe.redirectToCheckout({ sessionId: data.id });
-          })
-          .catch((err) => alert("Error: " + err.message));
-      });
-    </script>
+  // 🧾 Checkout button
+  document.getElementById("cart-button").addEventListener("click", () => {
+    if (cart.length === 0) {
+      alert("A kosár üres!");
+      return;
+    }
+
+    console.log("🛒 Sending cart:", cart);
+
+    fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cart, // [{ name, price, quantity }]
+        customerName: cart[0].name, // send the user's name
+      }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("💬 Server returned:", data);
+        if (!data.id) throw new Error("Missing session ID from server!");
+        return stripe.redirectToCheckout({ sessionId: data.id });
+      })
+      .catch((err) => alert("Error: " + err.message));
+  });
+
+  // set initial count
+  updateCartCount();
+</script>
+
   </body>
 </html>
