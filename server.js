@@ -263,7 +263,7 @@ app.post("/delete-account", async (req, res) => {
   }
 });
 
-// 🔁 Forgot password – generate temp password and send email
+// 🔁 Forgot password – generate temp password and SHOW it (no email)
 app.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -277,35 +277,27 @@ app.post("/forgot-password", async (req, res) => {
       (u) => u.email.toLowerCase() === email.toLowerCase()
     );
 
-    // Always respond generically if user not found
     if (index === -1) {
+      // generic response: don't leak if user exists
       return res.json({
         success: true,
         message:
-          "Ha létezik ilyen email cím, küldtünk egy új jelszót.",
+          "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.",
+        tempPassword: null,
       });
     }
 
-    const tempPassword = crypto.randomBytes(4).toString("hex"); // 8 chars
+    const tempPassword = crypto.randomBytes(4).toString("hex"); // 8 karakter
     users[index].passwordHash = hashPassword(tempPassword);
     await writeUsers(users);
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Új ideiglenes jelszó - Sonda SHOP",
-      text:
-        `Új ideiglenes jelszót kértél a Sonda SHOP oldalán.\n\n` +
-        `Ideiglenes jelszavad: ${tempPassword}\n\n` +
-        `Jelentkezz be ezzel a jelszóval, majd a fiókban változtasd meg egy saját jelszóra.`,
-    });
-
-    console.log("📧 Temporary password email sent to:", email);
+    console.log("🔐 New temporary password generated for:", email);
 
     res.json({
       success: true,
       message:
-        "Ha létezik ilyen email cím, küldtünk egy új jelszót.",
+        "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.",
+      tempPassword,
     });
   } catch (err) {
     console.error("❌ Forgot password error:", err);
@@ -314,6 +306,7 @@ app.post("/forgot-password", async (req, res) => {
     });
   }
 });
+
 
 // ---------- STRIPE CHECKOUT ----------
 

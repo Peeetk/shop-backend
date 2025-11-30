@@ -73,44 +73,63 @@
         <div class="auth-link">
           Vissza a
           <a href="login.html">bejelentkezéshez</a>
+          <button
+  onclick="
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('postLoginRedirect');
+    window.location.href = 'login.html';
+  "
+>
+  Kijelentkezés
+</button>
+
         </div>
       </div>
     </div>
 
     <script>
-      const BACKEND_URL = "https://shop-backend-dom2.onrender.com";
+const BACKEND_URL = "https://shop-backend-dom2.onrender.com";
 
-      const form = document.getElementById("forgot-form");
-      const emailInput = document.getElementById("email");
-      const errorBox = document.getElementById("forgot-error");
-      const successBox = document.getElementById("forgot-success");
+const form = document.getElementById("forgot-form");
+const emailInput = document.getElementById("email");
+const errorBox = document.getElementById("forgot-error");
+const successBox = document.getElementById("forgot-success");
 
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        errorBox.textContent = "";
-        successBox.textContent = "";
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  errorBox.textContent = "";
+  successBox.textContent = "";
 
-        const email = emailInput.value.trim();
+  const email = emailInput.value.trim();
 
-        try {
-          const res = await fetch(`${BACKEND_URL}/forgot-password`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
+  try {
+    const res = await fetch(`${BACKEND_URL}/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
 
-          const data = await res.json();
-          if (!res.ok || !data.success) {
-            throw new Error(data.error || "Ismeretlen hiba.");
-          }
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Ismeretlen hiba.");
+    }
 
-          successBox.textContent =
-            data.message ||
-            "Ha létezik ilyen email cím, küldtünk egy új jelszót.";
-        } catch (err) {
-          errorBox.textContent = err.message;
-        }
-      });
+    if (data.tempPassword) {
+      successBox.innerHTML =
+        `Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.<br>` +
+        `<strong>Ideiglenes jelszavad: ${data.tempPassword}</strong><br>` +
+        `Kérlek írd fel, és jelentkezz be vele, majd a fiókban változtasd meg.`;
+    } else {
+      successBox.textContent =
+        data.message ||
+        "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.";
+    }
+  } catch (err) {
+    errorBox.textContent = err.message;
+  }
+});
+
     </script>
   </body>
 </html>
