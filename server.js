@@ -17,8 +17,9 @@ const app = express();
 
 // ---------- USER / CUSTOMER HELPERS ----------
 
-const USERS_FILE = path.join(__dirname, "customers.json");
+const USERS_FILE = path.join(__dirname, "users.json");
 const CUSTOMERS_FILE = path.join(__dirname, "customers.json");
+
 
 async function readUsers() {
   try {
