@@ -20,9 +20,13 @@
         max-width: 420px;
         width: 100%;
       }
+      .auth-box h1 {
+        margin-bottom: 4px;
+        text-align: center;
+      }
       .auth-box h2 {
-        margin-top: 16px;
-        margin-bottom: 8px;
+        margin: 12px 0 8px 0;
+        font-size: 1.1rem;
       }
       .auth-box input {
         width: 100%;
@@ -31,31 +35,64 @@
         border-radius: 6px;
         border: 1px solid #ccc;
       }
+      .auth-box button {
+        width: 100%;
+        margin-top: 4px;
+      }
       .auth-error {
         color: red;
         font-size: 0.9rem;
+        min-height: 1.2em;
         margin-top: 4px;
       }
       .auth-success {
         color: green;
         font-size: 0.9rem;
+        min-height: 1.2em;
         margin-top: 4px;
       }
-      .danger-zone {
-        margin-top: 24px;
-        padding-top: 12px;
-        border-top: 1px solid #ddd;
+      .top-links {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
       }
-      .danger-zone button {
-        background-color: #c62828;
+      .top-links a,
+      .top-links button {
+        font-size: 0.9rem;
       }
     </style>
   </head>
   <body>
+    <!-- Login guard: only allow logged-in users -->
+    <script>
+      (function () {
+        const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+        if (!isLoggedIn) {
+          localStorage.setItem("postLoginRedirect", "account.html");
+          window.location.href = "login.html";
+        }
+      })();
+    </script>
+
     <div class="auth-wrapper">
       <div class="auth-box">
         <h1>Sonda SHOP</h1>
-        <p>Fiók beállításai</p>
+
+        <div class="top-links">
+          <a href="index.html">Vissza a főoldalra</a>
+          <button
+            type="button"
+            onclick="
+              localStorage.removeItem('isLoggedIn');
+              localStorage.removeItem('userEmail');
+              localStorage.removeItem('postLoginRedirect');
+              window.location.href = 'login.html';
+            "
+          >
+            Kijelentkezés
+          </button>
+        </div>
 
         <h2>Jelszó megváltoztatása</h2>
         <form id="change-pass-form">
@@ -68,7 +105,7 @@
           <input
             type="password"
             id="cp-old"
-            placeholder="Régi jelszó"
+            placeholder="Régi (vagy ideiglenes) jelszó"
             required
           />
           <input
@@ -80,26 +117,6 @@
           <button type="submit">Jelszó frissítése</button>
           <div id="cp-msg" class="auth-error"></div>
         </form>
-
-        <div class="danger-zone">
-          <h2>Fiók törlése</h2>
-          <form id="delete-form">
-            <input
-              type="email"
-              id="del-email"
-              placeholder="Email cím"
-              required
-            />
-            <input
-              type="password"
-              id="del-pass"
-              placeholder="Jelszó megerősítéshez"
-              required
-            />
-            <button type="submit">Fiók végleges törlése</button>
-            <div id="del-msg" class="auth-error"></div>
-          </form>
-        </div>
       </div>
     </div>
 
@@ -108,13 +125,20 @@
 
       const cpForm = document.getElementById("change-pass-form");
       const cpMsg = document.getElementById("cp-msg");
+      const emailInput = document.getElementById("cp-email");
+
+      // Prefill email from localStorage if we know it
+      const savedEmail = localStorage.getItem("userEmail");
+      if (savedEmail) {
+        emailInput.value = savedEmail;
+      }
 
       cpForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         cpMsg.textContent = "";
         cpMsg.className = "auth-error";
 
-        const email = document.getElementById("cp-email").value.trim();
+        const email = emailInput.value.trim();
         const oldPassword = document.getElementById("cp-old").value;
         const newPassword = document.getElementById("cp-new").value;
 
@@ -124,52 +148,21 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, oldPassword, newPassword }),
           });
+
           const data = await res.json();
           if (!res.ok || !data.success) {
             throw new Error(data.error || "Ismeretlen hiba.");
           }
+
           cpMsg.textContent = data.message;
           cpMsg.className = "auth-success";
+
+          // clear password fields
+          document.getElementById("cp-old").value = "";
+          document.getElementById("cp-new").value = "";
         } catch (err) {
           cpMsg.textContent = err.message;
-        }
-      });
-
-      const delForm = document.getElementById("delete-form");
-      const delMsg = document.getElementById("del-msg");
-
-      delForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (
-          !confirm(
-            "Biztosan törölni szeretnéd a fiókot? Ez a művelet nem visszavonható."
-          )
-        ) {
-          return;
-        }
-
-        delMsg.textContent = "";
-        const email = document.getElementById("del-email").value.trim();
-        const password = document.getElementById("del-pass").value;
-
-        try {
-          const res = await fetch(`${BACKEND_URL}/delete-account`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-          });
-          const data = await res.json();
-          if (!res.ok || !data.success) {
-            throw new Error(data.error || "Ismeretlen hiba.");
-          }
-          delMsg.textContent = data.message;
-          delMsg.className = "auth-success";
-
-          // also log out locally
-          localStorage.removeItem("isLoggedIn");
-          localStorage.removeItem("userEmail");
-        } catch (err) {
-          delMsg.textContent = err.message;
+          cpMsg.className = "auth-error";
         }
       });
     </script>

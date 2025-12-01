@@ -513,3 +513,125 @@ label[for="payer-name"] {
   background: transparent;  /* override red box */
   padding: 0;
 }
+
+/* ===== NAVBAR (index, etc.) ===== */
+
+.site-header {
+  background: rgba(0, 0, 0, 0.9);
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+}
+
+.logo-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.nav-link,
+.nav-button {
+  font-size: 0.9rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: none;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s;
+}
+
+/* link-style button */
+.nav-link {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+/* solid logout button */
+.nav-button {
+  background: #0070f3;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.nav-button:hover {
+  background: #005bb5;
+  transform: translateY(-1px);
+}
+
+/* stack nav items nicely on smaller screens */
+@media (max-width: 768px) {
+  .site-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  .nav-right {
+    justify-content: flex-start;
+  }
+}
+
+/* ===== HOME CARDS – smaller on mobile ===== */
+
+/* override the earlier .image-button media rules on very small screens */
+@media (max-width: 600px) {
+  .button-container {
+    gap: 16px;
+    margin: 24px auto;
+    max-width: 480px;
+  }
+
+  .image-button {
+    width: 85%;          /* narrower */
+    height: auto;        /* let height shrink */
+    padding: 16px 16px;  /* less padding */
+  }
+
+  .image-button img {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 8px;
+  }
+
+  .image-button span {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .image-button {
+    width: 90%;
+    padding: 12px 12px;
+  }
+
+  .image-button span {
+    font-size: 0.95rem;
+  }
+
+  .button-container {
+    gap: 12px;
+    margin-top: 20px;
+  }
+}

@@ -1,50 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Payee</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-   <script>
-    (function () {
-      const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
-      if (!isLoggedIn) {
-        localStorage.setItem("postLoginRedirect", "index.html"); // change to this page's file name
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sonda SHOP</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Login guard: only show this page if logged in -->
+    <script>
+      (function () {
+        const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+        if (!isLoggedIn) {
+          localStorage.setItem("postLoginRedirect", "index.html");
+          window.location.href = "login.html";
+        }
+      })();
+    </script>
+
+    <div class="app-overlay">
+      <!-- Top navigation bar -->
+      <header class="site-header">
+  <div class="nav-left">
+    <a href="./index.html" class="home-link logo-text">Sonda SHOP</a>
+  </div>
+
+  <nav class="nav-right">
+    <a href="account.html" class="nav-link">Fiók beállításai</a>
+    <button type="button" class="nav-button" id="logout-btn">
+      Kijelentkezés
+    </button>
+  </nav>
+</header>
+
+
+      <!-- Main content: the three big tiles -->
+      <main class="main-content">
+        <div class="button-container">
+          <!-- Havidíj -->
+          <a href="./index1.html" class="card-link">
+            <button type="button" class="image-button">
+              <img src="./ujrafizetes.png" alt="Havidíj ikon" />
+              <span>Havidíj</span>
+            </button>
+          </a>
+
+          <!-- Új előfizetés -->
+          <a href="./elofizetes.html" class="card-link">
+            <button type="button" class="image-button">
+              <img src="./ujrafizetes.png" alt="Új előfizetés ikon" />
+              <span>Új előfizetés</span>
+            </button>
+          </a>
+
+          <!-- Vu Player / SmartOne aktiválás -->
+          <a href="./updateapp.html" class="card-link">
+            <button type="button" class="image-button">
+              <img src="./tv-icon-13.png" alt="Vu Player ikon" />
+              <span>Vu Player /<br />SmartOne aktiválás</span>
+            </button>
+          </a>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      // logout button behaviour
+      document.getElementById("logout-btn").addEventListener("click", () => {
+        localStorage.removeItem("isLoggedIn");
+        localStorage.removeItem("userEmail");
+        localStorage.removeItem("postLoginRedirect");
         window.location.href = "login.html";
-      }
-    })();
-  </script>
+      });
+    </script>
+    <script>
+  const logoutBtn = document.getElementById("logout-btn");
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("userEmail");
+      localStorage.removeItem("postLoginRedirect");
+      window.location.href = "login.html";
+    });
+  }
+</script>
 
-      <header>
-      <h1>Sonda SHOP</h1>
-
-        
-      
-    </header>
-<div class="button-container">
-  <a href="./index1.html">
-    <button class="image-button">
-      <img src="./images.png" alt="Icon 1">
-      <span>Havidíj</span>
-    </button>
-  </a>
-
-  <a href="./elofizetes.html">
-    <button class="image-button">
-      <img src="./ujrafizetes.png" alt="Icon 2">
-      <span>Új előfizetés</span>
-    </button>
-  </a>
-
-  <a href="./updateapp.html">
-    <button class="image-button">
-      <img src="./tv-icon-13.png" alt="Icon 3">
-      <span>Vu Player /<br>SmartOne aktivalas</span>
-    </button>
-  </a>
-</div>
-
-</body>
+  </body>
 </html>
