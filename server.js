@@ -21,14 +21,21 @@ const app = express();
 // ---------- POSTGRES SETUP (USERS) ----------
 
 // Normalize connection string in case it starts with postgresql://
-let dbUrl = process.env.DATABASE_URL || "";
-if (dbUrl.startsWith("postgresql://")) {
+let dbUrl = process.env.DATABASE_URL;
+
+if (!dbUrl) {
+  console.error("❌ No DATABASE_URL set!");
+}
+
+if (dbUrl && dbUrl.startsWith("postgresql://")) {
   dbUrl = "postgres://" + dbUrl.slice("postgresql://".length);
 }
 
 const pool = new Pool({
-  connectionString: dbUrl || undefined,
-  ssl: dbUrl ? { rejectUnauthorized: false } : false,
+  connectionString: dbUrl,
+  ssl: dbUrl
+    ? { rejectUnauthorized: false }  // required for Render Postgres
+    : false,
 });
 
 async function initDb() {
