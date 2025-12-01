@@ -8,6 +8,9 @@ import cors from "cors";
 import nodemailer from "nodemailer";
 import fs from "fs/promises";
 import crypto from "crypto";
+import pkg from "pg"; // <--- NEW
+
+const { Pool } = pkg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,26 +18,38 @@ dotenv.config({ path: path.join(__dirname, ".env") }); // load .env from this fo
 
 const app = express();
 
+// ---------- POSTGRES SETUP (USERS) ----------
+
+// Render provides DATABASE_URL in the environment
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  console.log("✅ Users table ensured in Postgres");
+}
+
+initDb().catch((err) => {
+  console.error("❌ Error initialising DB:", err);
+});
+
 // ---------- USER / CUSTOMER HELPERS ----------
 
-const USERS_FILE = path.join(__dirname, "users.json");
+// NOTE: users are now in Postgres, customers.json is still file-based
 const CUSTOMERS_FILE = path.join(__dirname, "customers.json");
 
+// old USERS_FILE / readUsers / writeUsers removed (we use Postgres now)
 
-async function readUsers() {
-  try {
-    const data = await fs.readFile(USERS_FILE, "utf8");
-    return JSON.parse(data);
-  } catch (err) {
-    if (err.code === "ENOENT") return [];
-    throw err;
-  }
-}
-
-async function writeUsers(users) {
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2));
-}
-
+// password hashing helpers (unchanged)
 function hashPassword(password, salt) {
   salt = salt || crypto.randomBytes(16).toString("hex");
   const hash = crypto
@@ -53,6 +68,37 @@ function verifyPassword(password, stored) {
     Buffer.from(storedHash, "hex"),
     Buffer.from(hash, "hex")
   );
+}
+
+// DB helpers for users
+
+async function findUserByEmail(email) {
+  const result = await pool.query(
+    "SELECT id, email, password_hash FROM users WHERE LOWER(email) = LOWER($1)",
+    [email]
+  );
+  return result.rows[0] || null;
+}
+
+async function createUser(email, passwordHash) {
+  const result = await pool.query(
+    `INSERT INTO users (email, password_hash)
+     VALUES ($1, $2)
+     RETURNING id, email, password_hash, created_at`,
+    [email, passwordHash]
+  );
+  return result.rows[0];
+}
+
+async function updateUserPassword(email, newPasswordHash) {
+  await pool.query(
+    "UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)",
+    [newPasswordHash, email]
+  );
+}
+
+async function deleteUser(email) {
+  await pool.query("DELETE FROM users WHERE LOWER(email) = LOWER($1)", [email]);
 }
 
 // read all allowed customer emails from customers.json
@@ -140,23 +186,16 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    const users = await readUsers();
-    const exists = users.find((u) => u.email.toLowerCase() === emailLower);
-    if (exists) {
+    // check if user already exists in DB
+    const existing = await findUserByEmail(emailLower);
+    if (existing) {
       return res
         .status(400)
         .json({ error: "Ezzel az email címmel már van fiók." });
     }
 
-    const user = {
-      id: Date.now(),
-      email: emailLower,
-      passwordHash: hashPassword(password),
-      createdAt: new Date().toISOString(),
-    };
-
-    users.push(user);
-    await writeUsers(users);
+    const passwordHash = hashPassword(password);
+    await createUser(emailLower, passwordHash);
 
     res.json({ success: true, message: "Sikeres regisztráció!" });
   } catch (err) {
@@ -174,12 +213,8 @@ app.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Email és jelszó kötelező." });
     }
 
-    const users = await readUsers();
-    const user = users.find(
-      (u) => u.email.toLowerCase() === email.toLowerCase()
-    );
-
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    const user = await findUserByEmail(email);
+    if (!user || !verifyPassword(password, user.password_hash)) {
       return res.status(401).json({ error: "Hibás email vagy jelszó." });
     }
 
@@ -208,22 +243,17 @@ app.post("/change-password", async (req, res) => {
       });
     }
 
-    const users = await readUsers();
-    const index = users.findIndex(
-      (u) => u.email.toLowerCase() === email.toLowerCase()
-    );
-    if (index === -1) {
+    const user = await findUserByEmail(email);
+    if (!user) {
       return res.status(404).json({ error: "Felhasználó nem található." });
     }
 
-    const user = users[index];
-
-    if (!verifyPassword(oldPassword, user.passwordHash)) {
+    if (!verifyPassword(oldPassword, user.password_hash)) {
       return res.status(401).json({ error: "Hibás régi jelszó." });
     }
 
-    users[index].passwordHash = hashPassword(newPassword);
-    await writeUsers(users);
+    const newHash = hashPassword(newPassword);
+    await updateUserPassword(email, newHash);
 
     res.json({ success: true, message: "Jelszó sikeresen megváltoztatva." });
   } catch (err) {
@@ -241,21 +271,16 @@ app.post("/delete-account", async (req, res) => {
       return res.status(400).json({ error: "Email és jelszó kötelező." });
     }
 
-    const users = await readUsers();
-    const index = users.findIndex(
-      (u) => u.email.toLowerCase() === email.toLowerCase()
-    );
-    if (index === -1) {
+    const user = await findUserByEmail(email);
+    if (!user) {
       return res.status(404).json({ error: "Felhasználó nem található." });
     }
 
-    const user = users[index];
-    if (!verifyPassword(password, user.passwordHash)) {
+    if (!verifyPassword(password, user.password_hash)) {
       return res.status(401).json({ error: "Hibás jelszó." });
     }
 
-    users.splice(index, 1);
-    await writeUsers(users);
+    await deleteUser(email);
 
     res.json({ success: true, message: "Fiók törölve." });
   } catch (err) {
@@ -273,12 +298,9 @@ app.post("/forgot-password", async (req, res) => {
       return res.status(400).json({ error: "Email kötelező." });
     }
 
-    const users = await readUsers();
-    const index = users.findIndex(
-      (u) => u.email.toLowerCase() === email.toLowerCase()
-    );
+    const user = await findUserByEmail(email);
 
-    if (index === -1) {
+    if (!user) {
       // generic response: don't leak if user exists
       return res.json({
         success: true,
@@ -289,8 +311,8 @@ app.post("/forgot-password", async (req, res) => {
     }
 
     const tempPassword = crypto.randomBytes(4).toString("hex"); // 8 karakter
-    users[index].passwordHash = hashPassword(tempPassword);
-    await writeUsers(users);
+    const newHash = hashPassword(tempPassword);
+    await updateUserPassword(email, newHash);
 
     console.log("🔐 New temporary password generated for:", email);
 
@@ -307,7 +329,6 @@ app.post("/forgot-password", async (req, res) => {
     });
   }
 });
-
 
 // ---------- STRIPE CHECKOUT ----------
 
