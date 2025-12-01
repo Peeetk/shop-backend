@@ -8,22 +8,27 @@ import cors from "cors";
 import nodemailer from "nodemailer";
 import fs from "fs/promises";
 import crypto from "crypto";
-import pkg from "pg"; // <--- NEW
+import pkg from "pg";
 
 const { Pool } = pkg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, ".env") }); // load .env from this folder
+dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
 // ---------- POSTGRES SETUP (USERS) ----------
 
-// Render provides DATABASE_URL in the environment
+// Normalize connection string in case it starts with postgresql://
+let dbUrl = process.env.DATABASE_URL || "";
+if (dbUrl.startsWith("postgresql://")) {
+  dbUrl = "postgres://" + dbUrl.slice("postgresql://".length);
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  connectionString: dbUrl || undefined,
+  ssl: dbUrl ? { rejectUnauthorized: false } : false,
 });
 
 async function initDb() {
@@ -44,12 +49,9 @@ initDb().catch((err) => {
 
 // ---------- USER / CUSTOMER HELPERS ----------
 
-// NOTE: users are now in Postgres, customers.json is still file-based
 const CUSTOMERS_FILE = path.join(__dirname, "customers.json");
 
-// old USERS_FILE / readUsers / writeUsers removed (we use Postgres now)
-
-// password hashing helpers (unchanged)
+// password hashing helpers
 function hashPassword(password, salt) {
   salt = salt || crypto.randomBytes(16).toString("hex");
   const hash = crypto
@@ -71,7 +73,6 @@ function verifyPassword(password, stored) {
 }
 
 // DB helpers for users
-
 async function findUserByEmail(email) {
   const result = await pool.query(
     "SELECT id, email, password_hash FROM users WHERE LOWER(email) = LOWER($1)",
@@ -117,7 +118,6 @@ async function readCustomerEmails() {
 
 // ---------- MIDDLEWARE / STRIPE / EMAIL ----------
 
-// CORS for Netlify + local dev
 app.use(
   cors({
     origin: [
@@ -130,18 +130,15 @@ app.use(
   })
 );
 
-// Stripe
 console.log(
   "Stripe key detected:",
   process.env.STRIPE_SECRET_KEY ? "✅ Loaded" : "❌ Not found"
 );
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Static + JSON parsing
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
-// Nodemailer transporter
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -200,7 +197,12 @@ app.post("/register", async (req, res) => {
     res.json({ success: true, message: "Sikeres regisztráció!" });
   } catch (err) {
     console.error("❌ Register error:", err);
-    res.status(500).json({ error: "Szerver hiba regisztráció közben." });
+    // TEMP: show real error to debug
+    res.status(500).json({
+      error:
+        "Szerver hiba regisztráció közben: " +
+        String(err?.message || err),
+    });
   }
 });
 
@@ -289,7 +291,7 @@ app.post("/delete-account", async (req, res) => {
   }
 });
 
-// 🔁 Forgot password – generate temp password and SHOW it (no email)
+// 🔁 Forgot password
 app.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -301,7 +303,6 @@ app.post("/forgot-password", async (req, res) => {
     const user = await findUserByEmail(email);
 
     if (!user) {
-      // generic response: don't leak if user exists
       return res.json({
         success: true,
         message:
@@ -310,7 +311,7 @@ app.post("/forgot-password", async (req, res) => {
       });
     }
 
-    const tempPassword = crypto.randomBytes(4).toString("hex"); // 8 karakter
+    const tempPassword = crypto.randomBytes(4).toString("hex");
     const newHash = hashPassword(tempPassword);
     await updateUserPassword(email, newHash);
 
