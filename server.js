@@ -128,7 +128,7 @@ async function readCustomerEmails() {
 app.use(
   cors({
     origin: [
-      "https://sondypayee.netlify.app",
+      "https://sega-sondyhub.netlify.app",
       "http://127.0.0.1:5500",
       "http://localhost:5500",
     ],
@@ -372,8 +372,8 @@ app.post("/create-checkout-session", async (req, res) => {
         customer_name: req.body.customerName || "Unknown Customer",
       },
       success_url:
-        "https://sondypayee.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://sondypayee.netlify.app/cancel.html",
+        "https://sega-sondyhub.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://sega-sondyhub.netlify.app/cancel.html",
     });
 
     console.log("✅ Stripe session created:", session.id);
