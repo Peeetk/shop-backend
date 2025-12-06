@@ -128,7 +128,8 @@ async function readCustomerEmails() {
 app.use(
   cors({
     origin: [
-      "https://www.sondyshop.it.com",
+      "https://sondyshop.it.com",       // primary domain
+      "https://www.sondyshop.it.com",   // www alias (redirects)
       "http://127.0.0.1:5500",
       "http://localhost:5500",
     ],
@@ -136,6 +137,7 @@ app.use(
     allowedHeaders: ["Content-Type"],
   })
 );
+
 
 console.log(
   "Stripe key detected:",
@@ -372,8 +374,8 @@ app.post("/create-checkout-session", async (req, res) => {
         customer_name: req.body.customerName || "Unknown Customer",
       },
       success_url:
-        "https://www.sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://www.sondyshop.it.com/cancel.html",
+    "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
+  cancel_url: "https://sondyshop.it.com/cancel.html",
     });
 
     console.log("✅ Stripe session created:", session.id);
