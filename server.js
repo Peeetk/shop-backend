@@ -372,8 +372,8 @@ app.post("/create-checkout-session", async (req, res) => {
         customer_name: req.body.customerName || "Unknown Customer",
       },
       success_url:
-        "https://sega-sondyhub.netlify.app/success.html?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://sega-sondyhub.netlify.app/cancel.html",
+        "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://sondyshop.it.com/cancel.html",
     });
 
     console.log("✅ Stripe session created:", session.id);
