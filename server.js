@@ -657,18 +657,20 @@ app.get("/admin", (req, res) => {
       <button id="btn-save">Mentés / frissítés</button>
     </div>
 
-    <h2 style="font-size:1rem;margin-top:16px;">Ügyfelek</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Subtotal</th>
-          <th>Total</th>
-          <th>Aktív</th>
-        </tr>
-      </thead>
-      <tbody id="cust-table-body"></tbody>
-    </table>
+   <h2 style="font-size:1rem;margin-top:16px;">Ügyfelek</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Email</th>
+      <th>Subtotal</th>
+      <th>Total</th>
+      <th>Aktív</th>
+      <th>Művelet</th>
+    </tr>
+  </thead>
+  <tbody id="cust-table-body"></tbody>
+</table>
+
   </div>
 
   <script>
@@ -693,15 +695,22 @@ app.get("/admin", (req, res) => {
         }
         tbody.innerHTML = "";
         data.customers.forEach(c => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = \`
-            <td>\${c.email}</td>
-            <td>\${c.subtotal ?? ""}</td>
-            <td>\${c.total ?? ""}</td>
-            <td>\${c.active ? "✔" : "✖"}</td>
-          \`;
-          tbody.appendChild(tr);
-        });
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>${c.email}</td>
+    <td>${c.subtotal ?? ""}</td>
+    <td>${c.total ?? ""}</td>
+    <td>${c.active ? "✔" : "✖"}</td>
+    <td>
+      ${c.active
+        ? `<button class="btn-deactivate" data-email="${c.email}">Törlés</button>`
+        : ""
+      }
+    </td>
+  `;
+  tbody.appendChild(tr);
+});
+
       } catch (err) {
         setMsg(err.message, true);
       }
@@ -757,6 +766,41 @@ app.get("/admin", (req, res) => {
         setMsg(err.message, true);
       }
     });
+    // Handle delete / deactivate clicks
+tbody.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".btn-deactivate");
+  if (!btn) return;
+
+  if (!adminKey) {
+    setMsg("Először csatlakozz admin kulccsal!", true);
+    return;
+  }
+
+  const email = btn.dataset.email;
+  if (!confirm(`${email} törlése / inaktiválása?`)) return;
+
+  try {
+    const res = await fetch("/admin/customers/deactivate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey
+      },
+      body: JSON.stringify({ email })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Hiba törlés közben.");
+    }
+
+    setMsg(data.message || "Ügyfél inaktiválva.", false);
+    await fetchCustomers();
+  } catch (err) {
+    setMsg(err.message, true);
+  }
+});
+
   </script>
 </body>
 </html>`);
