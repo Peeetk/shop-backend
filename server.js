@@ -6,7 +6,6 @@ import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
 import nodemailer from "nodemailer";
-import fs from "fs/promises";
 import crypto from "crypto";
 import pkg from "pg";
 
@@ -102,7 +101,7 @@ initDb().catch((err) => {
 
 // ---------- USER / CUSTOMER HELPERS ----------
 
-const CUSTOMERS_FILE = path.join(__dirname, "customers.json");
+
 
 // password hashing helpers
 function hashPassword(password, salt) {
@@ -155,19 +154,7 @@ async function deleteUser(email) {
   await pool.query("DELETE FROM users WHERE LOWER(email) = LOWER($1)", [email]);
 }
 
-// read all allowed customer emails from customers.json
-async function readCustomerEmails() {
-  try {
-    const data = await fs.readFile(CUSTOMERS_FILE, "utf8");
-    const list = JSON.parse(data);
-    return list
-      .map((item) => (item["Customer Email"] || "").trim().toLowerCase())
-      .filter(Boolean);
-  } catch (err) {
-    if (err.code === "ENOENT") return [];
-    throw err;
-  }
-}
+
 
 // ---------- MIDDLEWARE / STRIPE / EMAIL ----------
 
