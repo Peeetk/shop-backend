@@ -59,6 +59,27 @@ async function initCustomersTable() {
   }
 }
 
+// ---- Admin key + helper to read allowed emails from DB ----
+
+const ADMIN_KEY = process.env.ADMIN_KEY || "";
+
+function requireAdmin(req, res, next) {
+  const key = req.headers["x-admin-key"];
+  if (!ADMIN_KEY || key !== ADMIN_KEY) {
+    return res.status(403).json({ error: "Nem jogosult." });
+  }
+  next();
+}
+
+// This replaces the old JSON-based version
+async function readCustomerEmails() {
+  const result = await pool.query(
+    "SELECT LOWER(email) AS email FROM customers WHERE active = TRUE"
+  );
+  return result.rows.map((r) => r.email);
+}
+
+
 // run it once when the server starts
 initCustomersTable();
 
@@ -493,4 +514,282 @@ app.post("/notify-payment", async (req, res) => {
 // ---------- START SERVER ----------
 
 const PORT = process.env.PORT || 10000;
+// ---- ADMIN API: list customers ----
+app.get("/admin/customers", requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, email, subtotal, total, note, active, created_at
+       FROM customers
+       ORDER BY created_at DESC`
+    );
+    res.json({ success: true, customers: result.rows });
+  } catch (err) {
+    console.error("❌ List customers error:", err);
+    res.status(500).json({ error: "Szerver hiba." });
+  }
+});
+
+// ---- ADMIN API: add/update customer (upsert) ----
+app.post("/admin/customers", requireAdmin, async (req, res) => {
+  try {
+    const { email, subtotal, total, note } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email kötelező." });
+    }
+
+    const emailLower = email.trim().toLowerCase();
+
+    await pool.query(
+      `
+      INSERT INTO customers (email, subtotal, total, note, active)
+      VALUES ($1, $2, $3, $4, TRUE)
+      ON CONFLICT (email)
+      DO UPDATE SET
+        subtotal = EXCLUDED.subtotal,
+        total = EXCLUDED.total,
+        note = EXCLUDED.note,
+        active = TRUE
+      `,
+      [emailLower, subtotal || null, total || null, note || null]
+    );
+
+    res.json({ success: true, message: "Ügyfél elmentve / frissítve." });
+  } catch (err) {
+    console.error("❌ Save customer error:", err);
+    res.status(500).json({ error: "Szerver hiba mentés közben." });
+  }
+});
+
+// ---- ADMIN API: deactivate customer (optional) ----
+app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email kötelező." });
+    }
+
+    await pool.query(
+      "UPDATE customers SET active = FALSE WHERE LOWER(email) = LOWER($1)",
+      [email]
+    );
+
+    res.json({ success: true, message: "Ügyfél inaktiválva." });
+  } catch (err) {
+    console.error("❌ Deactivate customer error:", err);
+    res.status(500).json({ error: "Szerver hiba." });
+  }
+});
+
+// ---- Simple admin UI page ----
+app.get("/admin", (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sonda SHOP – Admin</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .admin-box {
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      max-width: 700px;
+      width: 100%;
+    }
+    h1 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: 1.4rem;
+    }
+    p {
+      margin-top: 0;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    input, button {
+      padding: 6px 8px;
+      font-size: 0.9rem;
+    }
+    input {
+      flex: 1;
+      min-width: 120px;
+    }
+    button {
+      cursor: pointer;
+      border-radius: 4px;
+      border: 1px solid #1976d2;
+      background: #1976d2;
+      color: #fff;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+    th, td {
+      border-bottom: 1px solid #ddd;
+      padding: 4px 6px;
+      text-align: left;
+    }
+    th {
+      background: #f0f0f0;
+    }
+    .msg {
+      min-height: 1.2em;
+      font-size: 0.85rem;
+      margin-top: 4px;
+    }
+    .msg.error { color: #c62828; }
+    .msg.success { color: #2e7d32; }
+  </style>
+</head>
+<body>
+  <div class="admin-box">
+    <h1>Sonda SHOP – Admin</h1>
+    <p>Csak saját használatra. Itt tudod az engedélyezett email címeket kezelni.</p>
+
+    <div class="row">
+      <input type="password" id="admin-key" placeholder="ADMIN_KEY" />
+      <button id="btn-connect">Csatlakozás</button>
+    </div>
+    <div id="msg" class="msg"></div>
+
+    <hr />
+
+    <h2 style="font-size:1rem;">Új / meglévő ügyfél mentése</h2>
+    <div class="row">
+      <input type="email" id="cust-email" placeholder="Email cím" />
+      <input type="number" step="0.01" id="cust-subtotal" placeholder="Subtotal (£)" />
+      <input type="number" step="0.01" id="cust-total" placeholder="Total (£)" />
+    </div>
+    <div class="row">
+      <input type="text" id="cust-note" placeholder="Megjegyzés (név stb.)" />
+      <button id="btn-save">Mentés / frissítés</button>
+    </div>
+
+    <h2 style="font-size:1rem;margin-top:16px;">Ügyfelek</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Subtotal</th>
+          <th>Total</th>
+          <th>Aktív</th>
+        </tr>
+      </thead>
+      <tbody id="cust-table-body"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let adminKey = "";
+    const msgEl = document.getElementById("msg");
+    const tbody = document.getElementById("cust-table-body");
+
+    function setMsg(text, error) {
+      msgEl.textContent = text || "";
+      msgEl.className = "msg " + (error ? "error" : "success");
+    }
+
+    async function fetchCustomers() {
+      if (!adminKey) return;
+      try {
+        const res = await fetch("/admin/customers", {
+          headers: { "x-admin-key": adminKey }
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Hiba történt.");
+        }
+        tbody.innerHTML = "";
+        data.customers.forEach(c => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = \`
+            <td>\${c.email}</td>
+            <td>\${c.subtotal ?? ""}</td>
+            <td>\${c.total ?? ""}</td>
+            <td>\${c.active ? "✔" : "✖"}</td>
+          \`;
+          tbody.appendChild(tr);
+        });
+      } catch (err) {
+        setMsg(err.message, true);
+      }
+    }
+
+    document.getElementById("btn-connect").addEventListener("click", async () => {
+      adminKey = document.getElementById("admin-key").value.trim();
+      if (!adminKey) {
+        setMsg("Add meg az admin kulcsot!", true);
+        return;
+      }
+      setMsg("Kapcsolódás...");
+      await fetchCustomers();
+      setMsg("Kapcsolódva.", false);
+    });
+
+    document.getElementById("btn-save").addEventListener("click", async () => {
+      if (!adminKey) {
+        setMsg("Először csatlakozz admin kulccsal!", true);
+        return;
+      }
+      const email = document.getElementById("cust-email").value.trim();
+      const subtotal = document.getElementById("cust-subtotal").value;
+      const total = document.getElementById("cust-total").value;
+      const note = document.getElementById("cust-note").value.trim();
+
+      if (!email) {
+        setMsg("Email kötelező.", true);
+        return;
+      }
+
+      try {
+        const res = await fetch("/admin/customers", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey
+          },
+          body: JSON.stringify({
+            email,
+            subtotal: subtotal || null,
+            total: total || null,
+            note
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Hiba mentés közben.");
+        }
+        setMsg(data.message || "Mentve.", false);
+        await fetchCustomers();
+      } catch (err) {
+        setMsg(err.message, true);
+      }
+    });
+  </script>
+</body>
+</html>`);
+});
+
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
