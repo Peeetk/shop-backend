@@ -695,21 +695,21 @@ app.get("/admin", (req, res) => {
         }
         tbody.innerHTML = "";
         data.customers.forEach(c => {
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td>${c.email}</td>
-    <td>${c.subtotal ?? ""}</td>
-    <td>${c.total ?? ""}</td>
-    <td>${c.active ? "✔" : "✖"}</td>
-    <td>
-      ${c.active
-        ? `<button class="btn-deactivate" data-email="${c.email}">Törlés</button>`
-        : ""
-      }
-    </td>
-  `;
-  tbody.appendChild(tr);
-});
+          const tr = document.createElement("tr");
+          tr.innerHTML =
+            "<td>" + c.email + "</td>" +
+            "<td>" + (c.subtotal ?? "") + "</td>" +
+            "<td>" + (c.total ?? "") + "</td>" +
+            "<td>" + (c.active ? "✔" : "✖") + "</td>" +
+            "<td>" +
+              (c.active
+                ? '<button class="btn-deactivate" data-email="' + c.email + '">Törlés</button>'
+                : ""
+              ) +
+            "</td>";
+          tbody.appendChild(tr);
+        });
+
 
       } catch (err) {
         setMsg(err.message, true);
