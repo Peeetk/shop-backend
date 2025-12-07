@@ -763,16 +763,18 @@ app.get("/admin", (req, res) => {
 });
 
 // Public endpoint for frontend name suggestions
+// Public endpoint for frontend name suggestions
 app.get("/public/customers", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT email, note FROM customers WHERE active = TRUE ORDER BY created_at DESC"
+      "SELECT email, note, subtotal, total FROM customers WHERE active = TRUE ORDER BY created_at DESC"
     );
 
-    // Shape the data like the old customers.json
     const data = result.rows.map((r) => ({
       "Customer Email": r.email,
       "Customer Name": r.note || "",
+      "Subtotal": r.subtotal !== null ? Number(r.subtotal) : null,
+      "Total": r.total !== null ? Number(r.total) : null,
     }));
 
     res.json(data);
@@ -781,6 +783,7 @@ app.get("/public/customers", async (req, res) => {
     res.status(500).json({ error: "Szerver hiba." });
   }
 });
+
 
 
 // ---------- START SERVER ----------

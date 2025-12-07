@@ -167,14 +167,19 @@ fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
   fetch("https://shop-backend-dom2.onrender.com/public/customers")
     .then(res => res.json())
     .then(data => {
-      customers = data.map(entry => ({
-        name: entry["Customer Name"],
-        total: parseFloat(entry["Total"]),
-        id: entry["Customer ID"] || null
-      }));
+      customers = data.map(entry => {
+        const amount = entry["Total"] ?? entry["Subtotal"] ?? 0;
+        return {
+          name: entry["Customer Name"],
+          total: parseFloat(amount) || 0,
+          id: entry["Customer ID"] || null
+        };
+      });
     })
     .catch(err => {
       console.error("❌ Failed to load customers:", err);
     });
 });
+
+
 
