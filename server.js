@@ -767,6 +767,7 @@ app.get("/admin", (req, res) => {
       }
     });
     // Handle delete / deactivate clicks
+// Handle delete / deactivate clicks
 tbody.addEventListener("click", async (e) => {
   const btn = e.target.closest(".btn-deactivate");
   if (!btn) return;
@@ -777,7 +778,7 @@ tbody.addEventListener("click", async (e) => {
   }
 
   const email = btn.dataset.email;
-  if (!confirm(`${email} törlése / inaktiválása?`)) return;
+  if (!confirm(email + " törlése / inaktiválása?")) return;
 
   try {
     const res = await fetch("/admin/customers/deactivate", {
@@ -800,6 +801,7 @@ tbody.addEventListener("click", async (e) => {
     setMsg(err.message, true);
   }
 });
+
 
   </script>
 </body>
