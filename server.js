@@ -762,6 +762,27 @@ app.get("/admin", (req, res) => {
 </html>`);
 });
 
+// Public endpoint for frontend name suggestions
+app.get("/public/customers", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT email, note FROM customers WHERE active = TRUE ORDER BY created_at DESC"
+    );
+
+    // Shape the data like the old customers.json
+    const data = result.rows.map((r) => ({
+      "Customer Email": r.email,
+      "Customer Name": r.note || "",
+    }));
+
+    res.json(data);
+  } catch (err) {
+    console.error("❌ Public customers error:", err);
+    res.status(500).json({ error: "Szerver hiba." });
+  }
+});
+
+
 // ---------- START SERVER ----------
 
 const PORT = process.env.PORT || 10000;

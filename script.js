@@ -163,7 +163,8 @@ fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
 
 
   // 📁 Load customers
-  fetch("customers.json")
+  // 📁 Load customers from backend (Postgres)
+  fetch("https://shop-backend-dom2.onrender.com/public/customers")
     .then(res => res.json())
     .then(data => {
       customers = data.map(entry => ({
@@ -171,5 +172,9 @@ fetch("https://shop-backend-dom2.onrender.com/create-checkout-session", {
         total: parseFloat(entry["Total"]),
         id: entry["Customer ID"] || null
       }));
+    })
+    .catch(err => {
+      console.error("❌ Failed to load customers:", err);
     });
 });
+
