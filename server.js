@@ -17,7 +17,7 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 
-// ---------- POSTGRES SETUP (USERS) ----------
+// ---------- POSTGRES SETUP ----------
 
 // Normalize connection string in case it starts with postgresql://
 let dbUrl = process.env.DATABASE_URL;
@@ -32,12 +32,10 @@ if (dbUrl && dbUrl.startsWith("postgresql://")) {
 
 const pool = new Pool({
   connectionString: dbUrl,
-  ssl: dbUrl
-    ? { rejectUnauthorized: false }  // required for Render Postgres
-    : false,
+  ssl: dbUrl ? { rejectUnauthorized: false } : false, // required for Render Postgres
 });
 
-// --- Customers table init & helpers ---
+// ---------- TABLE INIT ----------
 
 async function initCustomersTable() {
   try {
@@ -58,7 +56,26 @@ async function initCustomersTable() {
   }
 }
 
-// ---- Admin key + helper to read allowed emails from DB ----
+async function initUsersTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log("✅ Users table ensured");
+  } catch (err) {
+    console.error("❌ Error initialising users table:", err);
+  }
+}
+
+initCustomersTable();
+initUsersTable();
+
+// ---------- ADMIN + CUSTOMER HELPERS ----------
 
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
@@ -70,7 +87,7 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// This replaces the old JSON-based version
+// ✅ Allowed customer emails now come ONLY from Postgres
 async function readCustomerEmails() {
   const result = await pool.query(
     "SELECT LOWER(email) AS email FROM customers WHERE active = TRUE"
@@ -78,32 +95,8 @@ async function readCustomerEmails() {
   return result.rows.map((r) => r.email);
 }
 
+// ---------- USER HELPERS ----------
 
-// run it once when the server starts
-initCustomersTable();
-
-
-async function initDb() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-  console.log("✅ Users table ensured in Postgres");
-}
-
-initDb().catch((err) => {
-  console.error("❌ Error initialising DB:", err);
-});
-
-// ---------- USER / CUSTOMER HELPERS ----------
-
-
-
-// password hashing helpers
 function hashPassword(password, salt) {
   salt = salt || crypto.randomBytes(16).toString("hex");
   const hash = crypto
@@ -124,7 +117,6 @@ function verifyPassword(password, stored) {
   );
 }
 
-// DB helpers for users
 async function findUserByEmail(email) {
   const result = await pool.query(
     "SELECT id, email, password_hash FROM users WHERE LOWER(email) = LOWER($1)",
@@ -154,15 +146,13 @@ async function deleteUser(email) {
   await pool.query("DELETE FROM users WHERE LOWER(email) = LOWER($1)", [email]);
 }
 
-
-
 // ---------- MIDDLEWARE / STRIPE / EMAIL ----------
 
 app.use(
   cors({
     origin: [
-      "https://sondyshop.it.com",       // primary domain
-      "https://www.sondyshop.it.com",   // www alias (redirects)
+      "https://sondyshop.it.com",      // primary domain
+      "https://www.sondyshop.it.com",  // www alias (redirects)
       "http://127.0.0.1:5500",
       "http://localhost:5500",
     ],
@@ -170,7 +160,6 @@ app.use(
     allowedHeaders: ["Content-Type"],
   })
 );
-
 
 console.log(
   "Stripe key detected:",
@@ -189,7 +178,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-transporter.verify((err, success) => {
+transporter.verify((err) => {
   if (err) {
     console.error("❌ Email transporter error:", err);
   } else {
@@ -199,7 +188,7 @@ transporter.verify((err, success) => {
 
 // ---------- AUTH ROUTES ----------
 
-// 🧾 Register – ONLY emails from customers.json can register
+// 🧾 Register – ONLY emails from *customers table* can register
 app.post("/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -208,14 +197,14 @@ app.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Email és jelszó kötelező." });
     }
     if (password.length < 6) {
-      return res.status(400).json({
-        error: "A jelszónak legalább 6 karakter hosszúnak kell lennie.",
-      });
+      return res
+        .status(400)
+        .json({ error: "A jelszónak legalább 6 karakter hosszúnak kell lennie." });
     }
 
     const emailLower = email.trim().toLowerCase();
 
-    // check allowed emails from customers.json
+    // ✅ check allowed emails from Postgres
     const allowedEmails = await readCustomerEmails();
     if (!allowedEmails.includes(emailLower)) {
       return res.status(400).json({
@@ -239,11 +228,8 @@ app.post("/register", async (req, res) => {
     res.json({ success: true, message: "Sikeres regisztráció!" });
   } catch (err) {
     console.error("❌ Register error:", err);
-    // TEMP: show real error to debug
     res.status(500).json({
-      error:
-        "Szerver hiba regisztráció közben: " +
-        String(err?.message || err),
+      error: "Szerver hiba regisztráció közben: " + String(err?.message || err),
     });
   }
 });
@@ -265,9 +251,7 @@ app.post("/login", async (req, res) => {
     res.json({ success: true, email: user.email });
   } catch (err) {
     console.error("❌ Login error:", err);
-    res
-      .status(500)
-      .json({ error: "Szerver hiba bejelentkezés közben." });
+    res.status(500).json({ error: "Szerver hiba bejelentkezés közben." });
   }
 });
 
@@ -282,9 +266,9 @@ app.post("/change-password", async (req, res) => {
         .json({ error: "Email, régi és új jelszó kötelező." });
     }
     if (newPassword.length < 6) {
-      return res.status(400).json({
-        error: "Az új jelszónak legalább 6 karakter hosszúnak kell lennie.",
-      });
+      return res
+        .status(400)
+        .json({ error: "Az új jelszónak legalább 6 karakter hosszúnak kell lennie." });
     }
 
     const user = await findUserByEmail(email);
@@ -407,46 +391,15 @@ app.post("/create-checkout-session", async (req, res) => {
         customer_name: req.body.customerName || "Unknown Customer",
       },
       success_url:
-    "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
-  cancel_url: "https://sondyshop.it.com/cancel.html",
+        "https://www.sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://www.sondyshop.it.com/cancel.html",
     });
 
-    console.log("✅ Stripe session created:", session.id);
     res.json({ id: session.id });
   } catch (err) {
-    console.error("❌ Stripe error:", err.message);
-    res.status(500).json({ error: err.message });
+    console.error("❌ Error creating checkout session:", err);
+    res.status(500).json({ error: "Failed to create checkout session" });
   }
-});
-
-// simple test route for session by id
-app.get("/session/:id", async (req, res) => {
-  try {
-    const session = await stripe.checkout.sessions.retrieve(req.params.id);
-    res.json({
-      customer_name: session.metadata.customer_name,
-      amount_total: session.amount_total,
-    });
-  } catch (err) {
-    console.error("❌ Failed to fetch session:", err.message);
-    res
-      .status(500)
-      .json({ error: "Failed to retrieve session details." });
-  }
-});
-
-// root + debug
-app.get("/", (req, res) => {
-  res.send("✅ Stripe backend is running successfully!");
-});
-
-app.get("/debug-env", (req, res) => {
-  res.json({
-    stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
-    stripeKeyPrefix: process.env.STRIPE_SECRET_KEY
-      ? process.env.STRIPE_SECRET_KEY.slice(0, 10)
-      : null,
-  });
 });
 
 // used by success.html to show payment info
@@ -485,7 +438,7 @@ app.post("/notify-payment", async (req, res) => {
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "your.email@example.com", // change this to your real email
+      to: "your.email@example.com", // change to your real email
       subject: "💰 New Payment Completed",
       text: `A payment of £${amount_total} was made by ${customer_name} on ${date}.`,
     });
@@ -498,10 +451,24 @@ app.post("/notify-payment", async (req, res) => {
   }
 });
 
-// ---------- START SERVER ----------
+// ---------- ROOT + DEBUG ----------
 
-const PORT = process.env.PORT || 10000;
-// ---- ADMIN API: list customers ----
+app.get("/", (req, res) => {
+  res.send("✅ Stripe backend is running successfully!");
+});
+
+app.get("/debug-env", (req, res) => {
+  res.json({
+    stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
+    stripeKeyPrefix: process.env.STRIPE_SECRET_KEY
+      ? process.env.STRIPE_SECRET_KEY.slice(0, 10)
+      : null,
+  });
+});
+
+// ---------- ADMIN API + UI ----------
+
+// list customers
 app.get("/admin/customers", requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
@@ -516,7 +483,7 @@ app.get("/admin/customers", requireAdmin, async (req, res) => {
   }
 });
 
-// ---- ADMIN API: add/update customer (upsert) ----
+// add/update customer
 app.post("/admin/customers", requireAdmin, async (req, res) => {
   try {
     const { email, subtotal, total, note } = req.body;
@@ -548,7 +515,7 @@ app.post("/admin/customers", requireAdmin, async (req, res) => {
   }
 });
 
-// ---- ADMIN API: deactivate customer (optional) ----
+// deactivate customer
 app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
@@ -569,7 +536,7 @@ app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   }
 });
 
-// ---- Simple admin UI page ----
+// simple admin UI
 app.get("/admin", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="hu">
@@ -779,4 +746,7 @@ app.get("/admin", (req, res) => {
 </html>`);
 });
 
+// ---------- START SERVER ----------
+
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
