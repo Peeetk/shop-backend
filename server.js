@@ -38,6 +38,31 @@ const pool = new Pool({
     : false,
 });
 
+// --- Customers table init & helpers ---
+
+async function initCustomersTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        subtotal NUMERIC(10, 2),
+        total NUMERIC(10, 2),
+        note TEXT,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log("✅ Customers table ensured");
+  } catch (err) {
+    console.error("❌ Error initialising customers table:", err);
+  }
+}
+
+// run it once when the server starts
+initCustomersTable();
+
+
 async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
