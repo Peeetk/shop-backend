@@ -39,10 +39,28 @@ const pool = new Pool({
 
 async function initCustomersTable() {
   try {
+    // 🔹 If an *old* table exists with UNIQUE(email), drop that constraint
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.table_constraints
+          WHERE table_name = 'customers'
+            AND constraint_type = 'UNIQUE'
+            AND constraint_name = 'customers_email_key'
+        ) THEN
+          ALTER TABLE customers DROP CONSTRAINT customers_email_key;
+        END IF;
+      END
+      $$;
+    `);
+
+    // 🔹 Ensure table exists (without UNIQUE on email)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS customers (
         id SERIAL PRIMARY KEY,
-        email TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL,
         subtotal NUMERIC(10, 2),
         total NUMERIC(10, 2),
         note TEXT,
@@ -50,11 +68,13 @@ async function initCustomersTable() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+
     console.log("✅ Customers table ensured");
   } catch (err) {
     console.error("❌ Error initialising customers table:", err);
   }
 }
+
 
 async function initUsersTable() {
   try {
@@ -90,10 +110,11 @@ function requireAdmin(req, res, next) {
 // ✅ Allowed customer emails now come ONLY from Postgres
 async function readCustomerEmails() {
   const result = await pool.query(
-    "SELECT LOWER(email) AS email FROM customers WHERE active = TRUE"
+    "SELECT DISTINCT LOWER(email) AS email FROM customers WHERE active = TRUE"
   );
   return result.rows.map((r) => r.email);
 }
+
 
 // ---------- USER HELPERS ----------
 
@@ -498,22 +519,17 @@ app.post("/admin/customers", requireAdmin, async (req, res) => {
       `
       INSERT INTO customers (email, subtotal, total, note, active)
       VALUES ($1, $2, $3, $4, TRUE)
-      ON CONFLICT (email)
-      DO UPDATE SET
-        subtotal = EXCLUDED.subtotal,
-        total = EXCLUDED.total,
-        note = EXCLUDED.note,
-        active = TRUE
       `,
       [emailLower, subtotal || null, total || null, note || null]
     );
 
-    res.json({ success: true, message: "Ügyfél elmentve / frissítve." });
+    res.json({ success: true, message: "Ügyfél elmentve." });
   } catch (err) {
     console.error("❌ Save customer error:", err);
     res.status(500).json({ error: "Szerver hiba mentés közben." });
   }
 });
+
 
 // deactivate customer
 app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
