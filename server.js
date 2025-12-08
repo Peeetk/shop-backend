@@ -491,9 +491,10 @@ app.get("/debug-env", (req, res) => {
 app.get("/admin/customers", requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, email, subtotal, total, note, active, created_at
-       FROM customers
-       ORDER BY created_at DESC`
+      "SELECT email, subtotal, total, note, active \
+ FROM customers \
+ ORDER BY active DESC, email ASC"
+
     );
     res.json({ success: true, customers: result.rows });
   } catch (err) {
