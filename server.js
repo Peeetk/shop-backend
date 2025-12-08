@@ -75,7 +75,6 @@ async function initCustomersTable() {
   }
 }
 
-
 async function initUsersTable() {
   try {
     await pool.query(`
@@ -114,7 +113,6 @@ async function readCustomerEmails() {
   );
   return result.rows.map((r) => r.email);
 }
-
 
 // ---------- USER HELPERS ----------
 
@@ -172,8 +170,8 @@ async function deleteUser(email) {
 app.use(
   cors({
     origin: [
-      "https://sondyshop.it.com",      // primary domain
-      "https://www.sondyshop.it.com",  // www alias (redirects)
+      "https://sondyshop.it.com", // primary domain
+      "https://www.sondyshop.it.com", // www alias (redirects)
       "http://127.0.0.1:5500",
       "http://localhost:5500",
     ],
@@ -412,9 +410,8 @@ app.post("/create-checkout-session", async (req, res) => {
         customer_name: req.body.customerName || "Unknown Customer",
       },
       success_url:
-  "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
-cancel_url: "https://sondyshop.it.com/cancel.html",
-
+        "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://sondyshop.it.com/cancel.html",
     });
 
     res.json({ id: session.id });
@@ -505,8 +502,8 @@ app.get("/admin/customers", requireAdmin, async (req, res) => {
   }
 });
 
-// add/update customer
-app.post("/admin/customers", requireAdmin, async (req, res) => {
+// add/update customer  (keep route name that admin JS expects)
+app.post("/admin/customers/save", requireAdmin, async (req, res) => {
   try {
     const { email, subtotal, total, note } = req.body;
 
@@ -531,7 +528,6 @@ app.post("/admin/customers", requireAdmin, async (req, res) => {
   }
 });
 
-
 // deactivate customer
 app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   try {
@@ -553,7 +549,7 @@ app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   }
 });
 
-// simple admin UI
+// simple admin UI (now with search bar)
 app.get("/admin", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="hu">
@@ -935,10 +931,6 @@ app.get("/admin", (req, res) => {
 </html>`);
 });
 
-
-
-
-// Public endpoint for frontend name suggestions
 // Public endpoint for frontend name suggestions
 app.get("/public/customers", async (req, res) => {
   try {
@@ -949,8 +941,8 @@ app.get("/public/customers", async (req, res) => {
     const data = result.rows.map((r) => ({
       "Customer Email": r.email,
       "Customer Name": r.note || "",
-      "Subtotal": r.subtotal !== null ? Number(r.subtotal) : null,
-      "Total": r.total !== null ? Number(r.total) : null,
+      Subtotal: r.subtotal !== null ? Number(r.subtotal) : null,
+      Total: r.total !== null ? Number(r.total) : null,
     }));
 
     res.json(data);
@@ -959,8 +951,6 @@ app.get("/public/customers", async (req, res) => {
     res.status(500).json({ error: "Szerver hiba." });
   }
 });
-
-
 
 // ---------- START SERVER ----------
 
