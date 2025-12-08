@@ -503,30 +503,33 @@ app.get("/admin/customers", requireAdmin, async (req, res) => {
 });
 
 // add/update customer  (keep route name that admin JS expects)
-app.post("/admin/customers/save", requireAdmin, async (req, res) => {
+app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   try {
-    const { email, subtotal, total, note } = req.body;
+    const { email } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: "Email kötelező." });
     }
 
-    const emailLower = email.trim().toLowerCase();
-
+    // 1) Mark customer(s) inactive so they can't register again
     await pool.query(
-      `
-      INSERT INTO customers (email, subtotal, total, note, active)
-      VALUES ($1, $2, $3, $4, TRUE)
-      `,
-      [emailLower, subtotal || null, total || null, note || null]
+      "UPDATE customers SET active = FALSE WHERE LOWER(email) = LOWER($1)",
+      [email]
     );
 
-    res.json({ success: true, message: "Ügyfél elmentve." });
+    // 2) Remove any login account for this email so they can't log in
+    await deleteUser(email);
+
+    res.json({
+      success: true,
+      message: "Ügyfél inaktiválva, bejelentkezés letiltva."
+    });
   } catch (err) {
-    console.error("❌ Save customer error:", err);
-    res.status(500).json({ error: "Szerver hiba mentés közben." });
+    console.error("❌ Deactivate customer error:", err);
+    res.status(500).json({ error: "Szerver hiba." });
   }
 });
+
 
 // deactivate customer
 app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
