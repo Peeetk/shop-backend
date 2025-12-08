@@ -101,7 +101,7 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "";
 function requireAdmin(req, res, next) {
   const key = req.headers["x-admin-key"];
   if (!ADMIN_KEY || key !== ADMIN_KEY) {
-    return res.status(403).json({ error: "Nem jogosult." });
+    return res.status(403).json({ success: false, error: "Nem jogosult." });
   }
   next();
 }
@@ -309,7 +309,7 @@ app.post("/change-password", async (req, res) => {
   }
 });
 
-// ❌ Delete account
+// ❌ Delete account (user-initiated)
 app.post("/delete-account", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -498,17 +498,81 @@ app.get("/admin/customers", requireAdmin, async (req, res) => {
     res.json({ success: true, customers: result.rows });
   } catch (err) {
     console.error("❌ List customers error:", err);
-    res.status(500).json({ error: "Szerver hiba." });
+    res.status(500).json({ success: false, error: "Szerver hiba." });
   }
 });
 
-// add/update customer  (keep route name that admin JS expects)
+// add / update customer
+app.post("/admin/customers/save", requireAdmin, async (req, res) => {
+  try {
+    const { email, subtotal, total, note } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, error: "Email kötelező." });
+    }
+
+    const emailTrim = email.trim();
+    const noteText = (note || "").trim();
+
+    // normalise numbers
+    const subVal =
+      subtotal === undefined || subtotal === null || subtotal === ""
+        ? null
+        : Number(subtotal);
+    const totVal =
+      total === undefined || total === null || total === ""
+        ? null
+        : Number(total);
+
+    // find latest record for (email, note)
+    const existing = await pool.query(
+      `SELECT id
+       FROM customers
+       WHERE LOWER(email) = LOWER($1) AND note = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [emailTrim, noteText]
+    );
+
+    if (existing.rows.length > 0) {
+      const id = existing.rows[0].id;
+      await pool.query(
+        `UPDATE customers
+         SET subtotal = $1,
+             total = $2,
+             note = $3,
+             active = TRUE
+         WHERE id = $4`,
+        [subVal, totVal, noteText, id]
+      );
+      return res.json({
+        success: true,
+        message: "Ügyfél frissítve.",
+      });
+    } else {
+      await pool.query(
+        `INSERT INTO customers (email, subtotal, total, note, active)
+         VALUES ($1, $2, $3, $4, TRUE)`,
+        [emailTrim, subVal, totVal, noteText]
+      );
+      return res.json({
+        success: true,
+        message: "Ügyfél elmentve.",
+      });
+    }
+  } catch (err) {
+    console.error("❌ Save customer error:", err);
+    res.status(500).json({ success: false, error: "Szerver hiba." });
+  }
+});
+
+// deactivate customer + remove login
 app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ error: "Email kötelező." });
+      return res.status(400).json({ success: false, error: "Email kötelező." });
     }
 
     // 1) Mark customer(s) inactive so they can't register again
@@ -522,37 +586,15 @@ app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
 
     res.json({
       success: true,
-      message: "Ügyfél inaktiválva, bejelentkezés letiltva."
+      message: "Ügyfél inaktiválva, bejelentkezés letiltva.",
     });
   } catch (err) {
     console.error("❌ Deactivate customer error:", err);
-    res.status(500).json({ error: "Szerver hiba." });
+    res.status(500).json({ success: false, error: "Szerver hiba." });
   }
 });
 
-
-// deactivate customer
-app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: "Email kötelező." });
-    }
-
-    await pool.query(
-      "UPDATE customers SET active = FALSE WHERE LOWER(email) = LOWER($1)",
-      [email]
-    );
-
-    res.json({ success: true, message: "Ügyfél inaktiválva." });
-  } catch (err) {
-    console.error("❌ Deactivate customer error:", err);
-    res.status(500).json({ error: "Szerver hiba." });
-  }
-});
-
-// simple admin UI (now with search bar)
+// simple admin UI (with search bar)
 app.get("/admin", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="hu">
