@@ -743,6 +743,15 @@ app.get("/admin", (req, res) => {
           <button id="save-btn" class="btn-primary">Mentés / frissítés</button>
         </div>
 
+        <!-- 🔎 SEARCH BAR (under Mentés / frissítés) -->
+        <div class="form-row">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Keresés email vagy megjegyzés alapján"
+          />
+        </div>
+
         <div class="section-title">Ügyfelek</div>
         <div class="table-wrapper">
           <table>
@@ -772,7 +781,11 @@ app.get("/admin", (req, res) => {
         var totalInput = document.getElementById("total-input");
         var noteInput = document.getElementById("note-input");
         var saveBtn = document.getElementById("save-btn");
+        var searchInput = document.getElementById("search-input");
         var tbody = document.getElementById("customers-tbody");
+
+        // store all customers for filtering
+        var allCustomers = [];
 
         function setMsg(msg, isError) {
           statusBox.textContent = msg || "";
@@ -791,7 +804,8 @@ app.get("/admin", (req, res) => {
             if (!res.ok || !data.success) {
               throw new Error(data.error || "Hiba az ügyfelek betöltése közben.");
             }
-            renderTable(data.customers || []);
+            allCustomers = data.customers || [];
+            applyFilter();  // render with current search filter
             setMsg("Ügyfelek betöltve.", false);
           } catch (err) {
             console.error(err);
@@ -817,6 +831,24 @@ app.get("/admin", (req, res) => {
             tbody.appendChild(tr);
           });
         }
+
+        // 🔎 filter by email or note (megjegyzés)
+        function applyFilter() {
+          var q = (searchInput.value || "").toLowerCase();
+          if (!q) {
+            renderTable(allCustomers);
+            return;
+          }
+          var filtered = allCustomers.filter(function (c) {
+            var email = (c.email || "").toLowerCase();
+            var note = (c.note || "").toLowerCase();
+            return email.includes(q) || note.includes(q);
+          });
+          renderTable(filtered);
+        }
+
+        // update table as user types
+        searchInput.addEventListener("input", applyFilter);
 
         connectBtn.addEventListener("click", function () {
           var key = adminKeyInput.value.trim();
@@ -902,6 +934,7 @@ app.get("/admin", (req, res) => {
   </body>
 </html>`);
 });
+
 
 
 
