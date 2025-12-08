@@ -904,6 +904,7 @@ app.get("/admin", (req, res) => {
 });
 
 
+
 // Public endpoint for frontend name suggestions
 // Public endpoint for frontend name suggestions
 app.get("/public/customers", async (req, res) => {
