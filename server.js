@@ -412,8 +412,9 @@ app.post("/create-checkout-session", async (req, res) => {
         customer_name: req.body.customerName || "Unknown Customer",
       },
       success_url:
-        "https://www.sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: "https://www.sondyshop.it.com/cancel.html",
+  "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
+cancel_url: "https://sondyshop.it.com/cancel.html",
+
     });
 
     res.json({ id: session.id });

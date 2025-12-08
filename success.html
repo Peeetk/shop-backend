@@ -12,50 +12,64 @@
       <h1>✅ Payment Successful!</h1>
       <p>Thank you for your payment.</p>
 
-      <p><strong>Name:</strong> <span id="customer-name">Loading...</span></p>
+      <p>
+        <strong>Name:</strong>
+        <span id="customer-name">Loading...</span>
+      </p>
+
       <p>Your payment was completed on:</p>
-      <p id="payment-date" class="date-box"></p>
+      <p id="payment-date" class="date-box">Loading...</p>
 
       <a href="index.html">Return to Shop</a>
     </div>
 
     <script>
-      async function showPaymentDetails() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const sessionId = urlParams.get("session_id");
+      (async () => {
+        const params = new URLSearchParams(window.location.search);
+        const sessionId = params.get("session_id");
+
+        const nameEl = document.getElementById("customer-name");
+        const dateEl = document.getElementById("payment-date");
 
         if (!sessionId) {
-          document.getElementById("customer-name").textContent = "Unknown";
-          document.getElementById("payment-date").textContent = "N/A";
+          console.error("No session_id in URL");
+          nameEl.textContent = "Error";
+          dateEl.textContent = "Could not load details";
           return;
         }
 
         try {
           const res = await fetch(
-            `https://shop-backend-dom2.onrender.com/session/${sessionId}`
+            "https://shop-backend-dom2.onrender.com/checkout-session?session_id=" +
+              encodeURIComponent(sessionId)
           );
+
+          if (!res.ok) {
+            throw new Error("Bad response: " + res.status);
+          }
+
           const data = await res.json();
+          console.log("Checkout session:", data);
 
-          if (data.error) throw new Error(data.error);
+          nameEl.textContent = data.customer_name || "Unknown";
+          dateEl.textContent = data.date || "Unknown date";
 
-          const date = new Date().toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          });
-
-          document.getElementById("customer-name").textContent =
-            data.customer_name || "Unknown";
-          document.getElementById("payment-date").textContent = date;
+          // optional: notify you by email – can fail silently
+          fetch("https://shop-backend-dom2.onrender.com/notify-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customer_name: data.customer_name,
+              date: data.date,
+              amount_total: data.amount_total,
+            }),
+          }).catch((err) => console.warn("notify-payment failed:", err));
         } catch (err) {
-          console.error("❌ Error fetching payment details:", err);
-          document.getElementById("customer-name").textContent = "Error";
-          document.getElementById("payment-date").textContent =
-            "Could not load details";
+          console.error("Failed to load session details:", err);
+          nameEl.textContent = "Error";
+          dateEl.textContent = "Could not load details";
         }
-      }
-
-      showPaymentDetails();
+      })();
     </script>
   </body>
 </html>
