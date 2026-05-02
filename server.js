@@ -192,6 +192,33 @@ async function updateUserPassword(email, newPasswordHash) {
   );
 }
 
+tbody.addEventListener("click", function (e) {
+  var editBtn = e.target.closest(".btn-edit");
+  if (!editBtn) return;
+
+  var id = editBtn.getAttribute("data-id");
+  var customer = allCustomers.find(function (c) {
+    return String(c.id) === String(id);
+  });
+
+  if (!customer) {
+    setMsg("Ügyfél nem található szerkesztéshez.", true);
+    return;
+  }
+
+  editingCustomerId = customer.id;
+
+  emailInput.value = customer.email || "";
+  subtotalInput.value = customer.subtotal != null ? customer.subtotal : "";
+  totalInput.value = customer.total != null ? customer.total : "";
+  noteInput.value = customer.note || "";
+
+  saveBtn.textContent = "Módosítás mentése";
+  setMsg("Szerkesztési mód: " + (customer.email || ""), false);
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
 async function deleteUser(email) {
   await pool.query("DELETE FROM users WHERE LOWER(email) = LOWER($1)", [email]);
 }
@@ -576,9 +603,9 @@ app.post("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
 app.get("/admin/customers", requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT email, subtotal, total, note, active \
- FROM customers \
- ORDER BY active DESC, email ASC"
+       "SELECT id, email, subtotal, total, note, active \
+   FROM customers \
+   ORDER BY active DESC, email ASC"
 
     );
     res.json({ success: true, customers: result.rows });
@@ -591,7 +618,7 @@ app.get("/admin/customers", requireAdmin, async (req, res) => {
 // add / update customer
 app.post("/admin/customers/save", requireAdmin, async (req, res) => {
   try {
-    const { email, subtotal, total, note } = req.body;
+    const { id, email, subtotal, total, note } = req.body;
 
     if (!email) {
       return res.status(400).json({ success: false, error: "Email kötelező." });
@@ -609,6 +636,23 @@ app.post("/admin/customers/save", requireAdmin, async (req, res) => {
       total === undefined || total === null || total === ""
         ? null
         : Number(total);
+        if (id) {
+  await pool.query(
+    `UPDATE customers
+     SET email = $1,
+         subtotal = $2,
+         total = $3,
+         note = $4,
+         active = TRUE
+     WHERE id = $5`,
+    [emailTrim, subVal, totVal, noteText, id]
+  );
+
+  return res.json({
+    success: true,
+    message: "Ügyfél frissítve.",
+  });
+}
 
     // find latest record for (email, note)
     const existing = await pool.query(
@@ -994,6 +1038,7 @@ savePopupBtn.addEventListener("click", async function () {
 
         // store all customers for filtering
         var allCustomers = [];
+        var editingCustomerId = null;
 
         function setMsg(msg, isError) {
           statusBox.textContent = msg || "";
@@ -1030,12 +1075,13 @@ savePopupBtn.addEventListener("click", async function () {
               "<td>" + (c.subtotal != null ? c.subtotal : "") + "</td>" +
               "<td>" + (c.total != null ? c.total : "") + "</td>" +
               "<td>" + (c.active ? "✔" : "✖") + "</td>" +
-              "<td>" +
-                (c.active
-                  ? '<button class="btn-deactivate" data-email="' + c.email + '">Törlés</button>'
-                  : ""
-                ) +
-              "</td>";
+            "<td>" +
+  '<button class="btn-edit" data-id="' + c.id + '">Edit</button> ' +
+  (c.active
+    ? '<button class="btn-deactivate" data-email="' + c.email + '">Törlés</button>'
+    : ""
+  ) +
+"</td>";
             tbody.appendChild(tr);
           });
         }
@@ -1084,6 +1130,10 @@ savePopupBtn.addEventListener("click", async function () {
             return;
           }
           var payload = { email: email, note: note };
+
+if (editingCustomerId) {
+  payload.id = editingCustomerId;
+}
           if (subtotal) payload.subtotal = parseFloat(subtotal);
           if (total) payload.total = parseFloat(total);
 
@@ -1101,8 +1151,13 @@ savePopupBtn.addEventListener("click", async function () {
               throw new Error(data.error || "Hiba mentés közben.");
             }
             setMsg(data.message || "Ügyfél elmentve / frissítve.", false);
-            noteInput.value = "";
-            fetchCustomers();
+           emailInput.value = "";
+subtotalInput.value = "";
+totalInput.value = "";
+noteInput.value = "";
+editingCustomerId = null;
+saveBtn.textContent = "Mentés / frissítés";
+fetchCustomers();
           } catch (err) {
             console.error(err);
             setMsg(err.message, true);
