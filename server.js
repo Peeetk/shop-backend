@@ -93,6 +93,37 @@ async function initUsersTable() {
 
 initCustomersTable();
 initUsersTable();
+initSiteSettingsTable();
+
+// -----------Edit Pop Ip ---------//
+
+async function initSiteSettingsTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(
+      `
+      INSERT INTO site_settings (key, value)
+      VALUES ($1, $2)
+      ON CONFLICT (key) DO NOTHING
+      `,
+      [
+        "welcome_popup_message",
+        'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
+      ]
+    );
+
+    console.log("✅ Site settings table ensured");
+  } catch (err) {
+    console.error("❌ Error initialising site settings table:", err);
+  }
+}
 
 // ---------- ADMIN + CUSTOMER HELPERS ----------
 
@@ -486,7 +517,61 @@ app.get("/debug-env", (req, res) => {
 });
 
 // ---------- ADMIN API + UI ----------
+// Admin: get current welcome popup message
+app.get("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM site_settings WHERE key = $1",
+      ["welcome_popup_message"]
+    );
 
+    res.json({
+      success: true,
+      message: result.rows[0]?.value || "",
+    });
+  } catch (err) {
+    console.error("❌ Admin get welcome popup error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba popup betöltés közben.",
+    });
+  }
+});
+
+// Admin: save welcome popup message
+app.post("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "Popup üzenet kötelező.",
+      });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (key)
+      DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+      `,
+      ["welcome_popup_message", message.trim()]
+    );
+
+    res.json({
+      success: true,
+      message: "Popup üzenet elmentve.",
+    });
+  } catch (err) {
+    console.error("❌ Save welcome popup error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba popup mentés közben.",
+    });
+  }
+});
 // list customers
 app.get("/admin/customers", requireAdmin, async (req, res) => {
   try {
@@ -546,6 +631,8 @@ app.post("/admin/customers/save", requireAdmin, async (req, res) => {
          WHERE id = $4`,
         [subVal, totVal, noteText, id]
       );
+
+      
       return res.json({
         success: true,
         message: "Ügyfél frissítve.",
@@ -794,6 +881,25 @@ app.get("/admin", (req, res) => {
           />
         </div>
 
+        <hr />
+
+<div class="section-title">Főoldali popup üzenet</div>
+
+<div class="form-row">
+  <textarea
+    id="popup-message-input"
+    placeholder="Írd ide a főoldali popup üzenetet..."
+    rows="5"
+    style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; font-family: inherit;"
+  ></textarea>
+</div>
+
+<div class="form-row">
+  <button id="save-popup-btn" class="btn-primary">
+    Popup üzenet mentése
+  </button>
+</div>
+
         <div class="section-title">Ügyfelek</div>
         <div class="table-wrapper">
           <table>
@@ -825,6 +931,66 @@ app.get("/admin", (req, res) => {
         var saveBtn = document.getElementById("save-btn");
         var searchInput = document.getElementById("search-input");
         var tbody = document.getElementById("customers-tbody");
+        var popupMessageInput = document.getElementById("popup-message-input");
+var savePopupBtn = document.getElementById("save-popup-btn");
+async function loadPopupMessage() {
+  if (!adminKey) return;
+
+  try {
+    var res = await fetch("/admin/settings/welcome-popup", {
+      headers: { "x-admin-key": adminKey },
+    });
+
+    var data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Hiba popup betöltés közben.");
+    }
+
+    popupMessageInput.value = data.message || "";
+  } catch (err) {
+    console.error(err);
+    setMsg(err.message, true);
+  }
+}
+
+savePopupBtn.addEventListener("click", async function () {
+  if (!adminKey) {
+    setMsg("Először csatlakozz admin kulccsal!", true);
+    return;
+  }
+
+  var popupMessage = popupMessageInput.value.trim();
+
+  if (!popupMessage) {
+    setMsg("A popup üzenet nem lehet üres.", true);
+    return;
+  }
+
+  try {
+    var res = await fetch("/admin/settings/welcome-popup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      },
+      body: JSON.stringify({
+        message: popupMessage,
+      }),
+    });
+
+    var data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Hiba popup mentés közben.");
+    }
+
+    setMsg(data.message || "Popup üzenet elmentve.", false);
+  } catch (err) {
+    console.error(err);
+    setMsg(err.message, true);
+  }
+});
 
         // store all customers for filtering
         var allCustomers = [];
@@ -892,15 +1058,17 @@ app.get("/admin", (req, res) => {
         // update table as user types
         searchInput.addEventListener("input", applyFilter);
 
-        connectBtn.addEventListener("click", function () {
-          var key = adminKeyInput.value.trim();
-          if (!key) {
-            setMsg("Add meg az admin kulcsot!", true);
-            return;
-          }
-          adminKey = key;
-          fetchCustomers();
-        });
+     connectBtn.addEventListener("click", function () {
+  var key = adminKeyInput.value.trim();
+  if (!key) {
+    setMsg("Add meg az admin kulcsot!", true);
+    return;
+  }
+
+  adminKey = key;
+  fetchCustomers();
+  loadPopupMessage();
+});
 
         saveBtn.addEventListener("click", async function () {
           if (!adminKey) {
@@ -999,6 +1167,29 @@ app.get("/public/customers", async (req, res) => {
 });
 
 // ---------- START SERVER ----------
+
+// Public endpoint for index.html welcome popup message
+app.get("/public/settings/welcome-popup", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM site_settings WHERE key = $1",
+      ["welcome_popup_message"]
+    );
+
+    res.json({
+      success: true,
+      message:
+        result.rows[0]?.value ||
+        'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
+    });
+  } catch (err) {
+    console.error("❌ Public welcome popup error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba.",
+    });
+  }
+});
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
