@@ -23,24 +23,25 @@ const app = express();
 let dbUrl = process.env.DATABASE_URL;
 
 if (!dbUrl) {
-console.error("❌ No DATABASE_URL set!");
+  console.error("❌ No DATABASE_URL set!");
 }
 
 if (dbUrl && dbUrl.startsWith("postgresql://")) {
-dbUrl = "postgres://" + dbUrl.slice("postgresql://".length);
+  dbUrl = "postgres://" + dbUrl.slice("postgresql://".length);
 }
 
 const pool = new Pool({
-connectionString: dbUrl,
-ssl: dbUrl ? { rejectUnauthorized: false } : false, // required for Render Postgres
+  connectionString: dbUrl,
+  ssl: dbUrl ? { rejectUnauthorized: false } : false, // required for Render Postgres
 });
 
 // ---------- TABLE INIT ----------
 
 async function initCustomersTable() {
-try {
-// 🔹 If an *old* table exists with UNIQUE(email), drop that constraint
-await pool.query(`       DO $$
+  try {
+    // 🔹 If an *old* table exists with UNIQUE(email), drop that constraint
+    await pool.query(`
+      DO $$
       BEGIN
         IF EXISTS (
           SELECT 1
@@ -55,168 +56,191 @@ await pool.query(`       DO $$
       $$;
     `);
 
+    // 🔹 Ensure table exists (without UNIQUE on email)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        subtotal NUMERIC(10, 2),
+        total NUMERIC(10, 2),
+        note TEXT,
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
 
-// 🔹 Ensure table exists (without UNIQUE on email)
-await pool.query(`
-  CREATE TABLE IF NOT EXISTS customers (
-    id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL,
-    subtotal NUMERIC(10, 2),
-    total NUMERIC(10, 2),
-    note TEXT,
-    active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-`);
-
-console.log("✅ Customers table ensured");
-
-
-} catch (err) {
-console.error("❌ Error initialising customers table:", err);
-}
+    console.log("✅ Customers table ensured");
+  } catch (err) {
+    console.error("❌ Error initialising customers table:", err);
+  }
 }
 
 async function initUsersTable() {
-try {
-await pool.query(`       CREATE TABLE IF NOT EXISTS users (
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
-console.log("✅ Users table ensured");
-} catch (err) {
-console.error("❌ Error initialising users table:", err);
-}
-}
-
-// ----------- Edit Popup ---------//
-
-async function initSiteSettingsTable() {
-try {
-await pool.query(`       CREATE TABLE IF NOT EXISTS site_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-    `);
-
-
-await pool.query(
-  `
-  INSERT INTO site_settings (key, value)
-  VALUES ($1, $2)
-  ON CONFLICT (key) DO NOTHING
-  `,
-  [
-    "welcome_popup_message",
-    'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
-  ]
-);
-
-console.log("✅ Site settings table ensured");
-
-
-} catch (err) {
-console.error("❌ Error initialising site settings table:", err);
-}
+    console.log("✅ Users table ensured");
+  } catch (err) {
+    console.error("❌ Error initialising users table:", err);
+  }
 }
 
 initCustomersTable();
 initUsersTable();
 initSiteSettingsTable();
 
+// -----------Edit Pop Ip ---------//
+
+async function initSiteSettingsTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS site_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(
+      `
+      INSERT INTO site_settings (key, value)
+      VALUES ($1, $2)
+      ON CONFLICT (key) DO NOTHING
+      `,
+      [
+        "welcome_popup_message",
+        'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
+      ]
+    );
+
+    console.log("✅ Site settings table ensured");
+  } catch (err) {
+    console.error("❌ Error initialising site settings table:", err);
+  }
+}
+
 // ---------- ADMIN + CUSTOMER HELPERS ----------
 
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 
 function requireAdmin(req, res, next) {
-const key = req.headers["x-admin-key"];
-if (!ADMIN_KEY || key !== ADMIN_KEY) {
-return res.status(403).json({ success: false, error: "Nem jogosult." });
-}
-next();
+  const key = req.headers["x-admin-key"];
+  if (!ADMIN_KEY || key !== ADMIN_KEY) {
+    return res.status(403).json({ success: false, error: "Nem jogosult." });
+  }
+  next();
 }
 
 // ✅ Allowed customer emails now come ONLY from Postgres
 async function readCustomerEmails() {
-const result = await pool.query(
-"SELECT DISTINCT LOWER(email) AS email FROM customers WHERE active = TRUE"
-);
-return result.rows.map((r) => r.email);
+  const result = await pool.query(
+    "SELECT DISTINCT LOWER(email) AS email FROM customers WHERE active = TRUE"
+  );
+  return result.rows.map((r) => r.email);
 }
 
 // ---------- USER HELPERS ----------
 
 function hashPassword(password, salt) {
-salt = salt || crypto.randomBytes(16).toString("hex");
-const hash = crypto
-.pbkdf2Sync(password, salt, 10000, 64, "sha512")
-.toString("hex");
-return `${salt}:${hash}`;
+  salt = salt || crypto.randomBytes(16).toString("hex");
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 10000, 64, "sha512")
+    .toString("hex");
+  return `${salt}:${hash}`;
 }
 
 function verifyPassword(password, stored) {
-const [salt, storedHash] = stored.split(":");
-const hash = crypto
-.pbkdf2Sync(password, salt, 10000, 64, "sha512")
-.toString("hex");
+  const [salt, storedHash] = stored.split(":");
+  const hash = crypto
+    .pbkdf2Sync(password, salt, 10000, 64, "sha512")
+    .toString("hex");
 
-return crypto.timingSafeEqual(
-Buffer.from(storedHash, "hex"),
-Buffer.from(hash, "hex")
-);
+  return crypto.timingSafeEqual(
+    Buffer.from(storedHash, "hex"),
+    Buffer.from(hash, "hex")
+  );
 }
 
 async function findUserByEmail(email) {
-const result = await pool.query(
-"SELECT id, email, password_hash FROM users WHERE LOWER(email) = LOWER($1)",
-[email]
-);
-return result.rows[0] || null;
+  const result = await pool.query(
+    "SELECT id, email, password_hash FROM users WHERE LOWER(email) = LOWER($1)",
+    [email]
+  );
+  return result.rows[0] || null;
 }
 
 async function createUser(email, passwordHash) {
-const result = await pool.query(
-`INSERT INTO users (email, password_hash)
+  const result = await pool.query(
+    `INSERT INTO users (email, password_hash)
      VALUES ($1, $2)
      RETURNING id, email, password_hash, created_at`,
-[email, passwordHash]
-);
-return result.rows[0];
+    [email, passwordHash]
+  );
+  return result.rows[0];
 }
 
 async function updateUserPassword(email, newPasswordHash) {
-await pool.query(
-"UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)",
-[newPasswordHash, email]
-);
+  await pool.query(
+    "UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)",
+    [newPasswordHash, email]
+  );
 }
 
+tbody.addEventListener("click", function (e) {
+  var editBtn = e.target.closest(".btn-edit");
+  if (!editBtn) return;
+
+  var id = editBtn.getAttribute("data-id");
+  var customer = allCustomers.find(function (c) {
+    return String(c.id) === String(id);
+  });
+
+  if (!customer) {
+    setMsg("Ügyfél nem található szerkesztéshez.", true);
+    return;
+  }
+
+  editingCustomerId = customer.id;
+
+  emailInput.value = customer.email || "";
+  subtotalInput.value = customer.subtotal != null ? customer.subtotal : "";
+  totalInput.value = customer.total != null ? customer.total : "";
+  noteInput.value = customer.note || "";
+
+  saveBtn.textContent = "Módosítás mentése";
+  setMsg("Szerkesztési mód: " + (customer.email || ""), false);
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
 async function deleteUser(email) {
-await pool.query("DELETE FROM users WHERE LOWER(email) = LOWER($1)", [email]);
+  await pool.query("DELETE FROM users WHERE LOWER(email) = LOWER($1)", [email]);
 }
 
 // ---------- MIDDLEWARE / STRIPE / EMAIL ----------
 
 app.use(
-cors({
-origin: [
-"[https://sondyshop.it.com](https://sondyshop.it.com)", // primary domain
-"[https://www.sondyshop.it.com](https://www.sondyshop.it.com)", // www alias (redirects)
-"[http://127.0.0.1:5500](http://127.0.0.1:5500)",
-"http://localhost:5500",
-],
-methods: ["GET", "POST"],
-allowedHeaders: ["Content-Type"],
-})
+  cors({
+    origin: [
+      "https://sondyshop.it.com", // primary domain
+      "https://www.sondyshop.it.com", // www alias (redirects)
+      "http://127.0.0.1:5500",
+      "http://localhost:5500",
+    ],
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+  })
 );
 
 console.log(
-"Stripe key detected:",
-process.env.STRIPE_SECRET_KEY ? "✅ Loaded" : "❌ Not found"
+  "Stripe key detected:",
+  process.env.STRIPE_SECRET_KEY ? "✅ Loaded" : "❌ Not found"
 );
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -224,445 +248,395 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
 const transporter = nodemailer.createTransport({
-service: "gmail",
-auth: {
-user: process.env.EMAIL_USER,
-pass: process.env.EMAIL_PASS,
-},
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
 });
 
 transporter.verify((err) => {
-if (err) {
-console.error("❌ Email transporter error:", err);
-} else {
-console.log("✅ Email transporter ready");
-}
+  if (err) {
+    console.error("❌ Email transporter error:", err);
+  } else {
+    console.log("✅ Email transporter ready");
+  }
 });
 
 // ---------- AUTH ROUTES ----------
 
 // 🧾 Register – ONLY emails from *customers table* can register
 app.post("/register", async (req, res) => {
-try {
-const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email és jelszó kötelező." });
+    }
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "A jelszónak legalább 6 karakter hosszúnak kell lennie." });
+    }
 
-if (!email || !password) {
-  return res.status(400).json({ error: "Email és jelszó kötelező." });
-}
-if (password.length < 6) {
-  return res
-    .status(400)
-    .json({ error: "A jelszónak legalább 6 karakter hosszúnak kell lennie." });
-}
+    const emailLower = email.trim().toLowerCase();
 
-const emailLower = email.trim().toLowerCase();
+    // ✅ check allowed emails from Postgres
+    const allowedEmails = await readCustomerEmails();
+    if (!allowedEmails.includes(emailLower)) {
+      return res.status(400).json({
+        error:
+          "Ezzel az email címmel nem lehet regisztrálni. " +
+          "Használd azt az email címet, amellyel az előfizetés készült, vagy vedd fel velünk a kapcsolatot.",
+      });
+    }
 
-// ✅ check allowed emails from Postgres
-const allowedEmails = await readCustomerEmails();
-if (!allowedEmails.includes(emailLower)) {
-  return res.status(400).json({
-    error:
-      "Ezzel az email címmel nem lehet regisztrálni. " +
-      "Használd azt az email címet, amellyel az előfizetés készült, vagy vedd fel velünk a kapcsolatot.",
-  });
-}
+    // check if user already exists in DB
+    const existing = await findUserByEmail(emailLower);
+    if (existing) {
+      return res
+        .status(400)
+        .json({ error: "Ezzel az email címmel már van fiók." });
+    }
 
-// check if user already exists in DB
-const existing = await findUserByEmail(emailLower);
-if (existing) {
-  return res
-    .status(400)
-    .json({ error: "Ezzel az email címmel már van fiók." });
-}
+    const passwordHash = hashPassword(password);
+    await createUser(emailLower, passwordHash);
 
-const passwordHash = hashPassword(password);
-await createUser(emailLower, passwordHash);
-
-res.json({ success: true, message: "Sikeres regisztráció!" });
-
-
-} catch (err) {
-console.error("❌ Register error:", err);
-res.status(500).json({
-error: "Szerver hiba regisztráció közben: " + String(err?.message || err),
-});
-}
+    res.json({ success: true, message: "Sikeres regisztráció!" });
+  } catch (err) {
+    console.error("❌ Register error:", err);
+    res.status(500).json({
+      error: "Szerver hiba regisztráció közben: " + String(err?.message || err),
+    });
+  }
 });
 
 // 🔑 Login
 app.post("/login", async (req, res) => {
-try {
-const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email és jelszó kötelező." });
+    }
 
-if (!email || !password) {
-  return res.status(400).json({ error: "Email és jelszó kötelező." });
-}
+    const user = await findUserByEmail(email);
+    if (!user || !verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ error: "Hibás email vagy jelszó." });
+    }
 
-const user = await findUserByEmail(email);
-if (!user || !verifyPassword(password, user.password_hash)) {
-  return res.status(401).json({ error: "Hibás email vagy jelszó." });
-}
-
-res.json({ success: true, email: user.email });
-
-
-} catch (err) {
-console.error("❌ Login error:", err);
-res.status(500).json({ error: "Szerver hiba bejelentkezés közben." });
-}
+    res.json({ success: true, email: user.email });
+  } catch (err) {
+    console.error("❌ Login error:", err);
+    res.status(500).json({ error: "Szerver hiba bejelentkezés közben." });
+  }
 });
 
 // 🔐 Change password
 app.post("/change-password", async (req, res) => {
-try {
-const { email, oldPassword, newPassword } = req.body;
+  try {
+    const { email, oldPassword, newPassword } = req.body;
 
+    if (!email || !oldPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "Email, régi és új jelszó kötelező." });
+    }
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "Az új jelszónak legalább 6 karakter hosszúnak kell lennie." });
+    }
 
-if (!email || !oldPassword || !newPassword) {
-  return res
-    .status(400)
-    .json({ error: "Email, régi és új jelszó kötelező." });
-}
-if (newPassword.length < 6) {
-  return res
-    .status(400)
-    .json({ error: "Az új jelszónak legalább 6 karakter hosszúnak kell lennie." });
-}
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: "Felhasználó nem található." });
+    }
 
-const user = await findUserByEmail(email);
-if (!user) {
-  return res.status(404).json({ error: "Felhasználó nem található." });
-}
+    if (!verifyPassword(oldPassword, user.password_hash)) {
+      return res.status(401).json({ error: "Hibás régi jelszó." });
+    }
 
-if (!verifyPassword(oldPassword, user.password_hash)) {
-  return res.status(401).json({ error: "Hibás régi jelszó." });
-}
+    const newHash = hashPassword(newPassword);
+    await updateUserPassword(email, newHash);
 
-const newHash = hashPassword(newPassword);
-await updateUserPassword(email, newHash);
-
-res.json({ success: true, message: "Jelszó sikeresen megváltoztatva." });
-
-
-} catch (err) {
-console.error("❌ Change password error:", err);
-res.status(500).json({ error: "Szerver hiba jelszóváltás közben." });
-}
+    res.json({ success: true, message: "Jelszó sikeresen megváltoztatva." });
+  } catch (err) {
+    console.error("❌ Change password error:", err);
+    res.status(500).json({ error: "Szerver hiba jelszóváltás közben." });
+  }
 });
 
 // ❌ Delete account (user-initiated)
 app.post("/delete-account", async (req, res) => {
-try {
-const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email és jelszó kötelező." });
+    }
 
-if (!email || !password) {
-  return res.status(400).json({ error: "Email és jelszó kötelező." });
-}
+    const user = await findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: "Felhasználó nem található." });
+    }
 
-const user = await findUserByEmail(email);
-if (!user) {
-  return res.status(404).json({ error: "Felhasználó nem található." });
-}
+    if (!verifyPassword(password, user.password_hash)) {
+      return res.status(401).json({ error: "Hibás jelszó." });
+    }
 
-if (!verifyPassword(password, user.password_hash)) {
-  return res.status(401).json({ error: "Hibás jelszó." });
-}
+    await deleteUser(email);
 
-await deleteUser(email);
-
-res.json({ success: true, message: "Fiók törölve." });
-
-
-} catch (err) {
-console.error("❌ Delete account error:", err);
-res.status(500).json({ error: "Szerver hiba fiók törlése közben." });
-}
+    res.json({ success: true, message: "Fiók törölve." });
+  } catch (err) {
+    console.error("❌ Delete account error:", err);
+    res.status(500).json({ error: "Szerver hiba fiók törlése közben." });
+  }
 });
 
 // 🔁 Forgot password
 app.post("/forgot-password", async (req, res) => {
-try {
-const { email } = req.body;
+  try {
+    const { email } = req.body;
 
+    if (!email) {
+      return res.status(400).json({ error: "Email kötelező." });
+    }
 
-if (!email) {
-  return res.status(400).json({ error: "Email kötelező." });
-}
+    const user = await findUserByEmail(email);
 
-const user = await findUserByEmail(email);
+    if (!user) {
+      return res.json({
+        success: true,
+        message:
+          "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.",
+        tempPassword: null,
+      });
+    }
 
-if (!user) {
-  return res.json({
-    success: true,
-    message:
-      "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.",
-    tempPassword: null,
-  });
-}
+    const tempPassword = crypto.randomBytes(4).toString("hex");
+    const newHash = hashPassword(tempPassword);
+    await updateUserPassword(email, newHash);
 
-const tempPassword = crypto.randomBytes(4).toString("hex");
-const newHash = hashPassword(tempPassword);
-await updateUserPassword(email, newHash);
+    console.log("🔐 New temporary password generated for:", email);
 
-console.log("🔐 New temporary password generated for:", email);
-
-res.json({
-  success: true,
-  message:
-    "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.",
-  tempPassword,
-});
-
-
-} catch (err) {
-console.error("❌ Forgot password error:", err);
-res.status(500).json({
-error: "Szerver hiba jelszó visszaállítás közben.",
-});
-}
+    res.json({
+      success: true,
+      message:
+        "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.",
+      tempPassword,
+    });
+  } catch (err) {
+    console.error("❌ Forgot password error:", err);
+    res.status(500).json({
+      error: "Szerver hiba jelszó visszaállítás közben.",
+    });
+  }
 });
 
 // ---------- STRIPE CHECKOUT ----------
 
 app.post("/create-checkout-session", async (req, res) => {
-try {
-const cart = req.body.cart || [];
-console.log("📩 Received cart:", cart);
+  try {
+    const cart = req.body.cart || [];
+    console.log("📩 Received cart:", cart);
 
+    if (!cart.length) return res.status(400).json({ error: "Cart is empty" });
 
-if (!cart.length) return res.status(400).json({ error: "Cart is empty" });
+    const line_items = cart.map((i) => {
+      let amount = parseFloat(i.price ?? i.amount);
+      if (isNaN(amount))
+        amount = Number(String(i.price ?? i.amount).replace(",", "."));
+      let unit_amount = Math.round(amount * 100);
+      if (unit_amount < 30) unit_amount = 30;
 
-const line_items = cart.map((i) => {
-  let amount = parseFloat(i.price ?? i.amount);
-  if (isNaN(amount))
-    amount = Number(String(i.price ?? i.amount).replace(",", "."));
-  let unit_amount = Math.round(amount * 100);
-  if (unit_amount < 30) unit_amount = 30;
+      return {
+        price_data: {
+          currency: "gbp",
+          product_data: { name: i.name },
+          unit_amount,
+        },
+        quantity: i.quantity,
+      };
+    });
 
-  return {
-    price_data: {
-      currency: "gbp",
-      product_data: { name: i.name },
-      unit_amount,
-    },
-    quantity: i.quantity,
-  };
-});
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items,
+      metadata: {
+        customer_name: req.body.customerName || "Unknown Customer",
+      },
+      success_url:
+        "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: "https://sondyshop.it.com/cancel.html",
+    });
 
-const session = await stripe.checkout.sessions.create({
-  payment_method_types: ["card"],
-  mode: "payment",
-  line_items,
-  metadata: {
-    customer_name: req.body.customerName || "Unknown Customer",
-  },
-  success_url:
-    "https://sondyshop.it.com/success.html?session_id={CHECKOUT_SESSION_ID}",
-  cancel_url: "https://sondyshop.it.com/cancel.html",
-});
-
-res.json({ id: session.id });
-
-
-} catch (err) {
-console.error("❌ Error creating checkout session:", err);
-res.status(500).json({ error: "Failed to create checkout session" });
-}
+    res.json({ id: session.id });
+  } catch (err) {
+    console.error("❌ Error creating checkout session:", err);
+    res.status(500).json({ error: "Failed to create checkout session" });
+  }
 });
 
 // used by success.html to show payment info
 app.get("/checkout-session", async (req, res) => {
-try {
-const { session_id } = req.query;
-if (!session_id) {
-return res.status(400).json({ error: "Missing session_id" });
-}
+  try {
+    const { session_id } = req.query;
+    if (!session_id) {
+      return res.status(400).json({ error: "Missing session_id" });
+    }
 
+    const session = await stripe.checkout.sessions.retrieve(session_id, {
+      expand: ["customer_details"],
+    });
 
-const session = await stripe.checkout.sessions.retrieve(session_id, {
-  expand: ["customer_details"],
-});
-
-res.json({
-  id: session.id,
-  customer_name:
-    session.metadata?.customer_name ||
-    session.customer_details?.name ||
-    "Unknown",
-  amount_total: (session.amount_total / 100).toFixed(2),
-  currency: session.currency.toUpperCase(),
-  date: new Date(session.created * 1000).toLocaleDateString("en-GB"),
-});
-
-
-} catch (err) {
-console.error("❌ Error fetching session:", err);
-res.status(500).json({ error: err.message });
-}
+    res.json({
+      id: session.id,
+      customer_name:
+        session.metadata?.customer_name ||
+        session.customer_details?.name ||
+        "Unknown",
+      amount_total: (session.amount_total / 100).toFixed(2),
+      currency: session.currency.toUpperCase(),
+      date: new Date(session.created * 1000).toLocaleDateString("en-GB"),
+    });
+  } catch (err) {
+    console.error("❌ Error fetching session:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---------- PAYMENT NOTIFICATION EMAIL (optional) ----------
 
 app.post("/notify-payment", async (req, res) => {
-try {
-const { date, customer_name, amount_total } = req.body;
+  try {
+    const { date, customer_name, amount_total } = req.body;
 
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: "your.email@example.com", // change to your real email
+      subject: "💰 New Payment Completed",
+      text: `A payment of £${amount_total} was made by ${customer_name} on ${date}.`,
+    });
 
-await transporter.sendMail({
-  from: process.env.EMAIL_USER,
-  to: "your.email@example.com", // change to your real email
-  subject: "💰 New Payment Completed",
-  text: `A payment of £${amount_total} was made by ${customer_name} on ${date}.`,
-});
-
-console.log("📧 Payment notification email sent!");
-res.json({ success: true });
-
-
-} catch (err) {
-console.error("❌ Email sending failed:", err);
-res.status(500).json({ error: err.message });
-}
+    console.log("📧 Payment notification email sent!");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Email sending failed:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ---------- ROOT + DEBUG ----------
 
 app.get("/", (req, res) => {
-res.send("✅ Stripe backend is running successfully!");
+  res.send("✅ Stripe backend is running successfully!");
 });
 
 app.get("/debug-env", (req, res) => {
-res.json({
-stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
-stripeKeyPrefix: process.env.STRIPE_SECRET_KEY
-? process.env.STRIPE_SECRET_KEY.slice(0, 10)
-: null,
-});
+  res.json({
+    stripeKeyLoaded: !!process.env.STRIPE_SECRET_KEY,
+    stripeKeyPrefix: process.env.STRIPE_SECRET_KEY
+      ? process.env.STRIPE_SECRET_KEY.slice(0, 10)
+      : null,
+  });
 });
 
 // ---------- ADMIN API + UI ----------
-
 // Admin: get current welcome popup message
 app.get("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
-try {
-const result = await pool.query(
-"SELECT value FROM site_settings WHERE key = $1",
-["welcome_popup_message"]
-);
+  try {
+    const result = await pool.query(
+      "SELECT value FROM site_settings WHERE key = $1",
+      ["welcome_popup_message"]
+    );
 
-
-res.json({
-  success: true,
-  message: result.rows[0]?.value || "",
-});
-
-
-} catch (err) {
-console.error("❌ Admin get welcome popup error:", err);
-res.status(500).json({
-success: false,
-error: "Szerver hiba popup betöltés közben.",
-});
-}
+    res.json({
+      success: true,
+      message: result.rows[0]?.value || "",
+    });
+  } catch (err) {
+    console.error("❌ Admin get welcome popup error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba popup betöltés közben.",
+    });
+  }
 });
 
 // Admin: save welcome popup message
 app.post("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
-try {
-const { message } = req.body;
+  try {
+    const { message } = req.body;
 
+    if (!message || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: "Popup üzenet kötelező.",
+      });
+    }
 
-if (!message || !message.trim()) {
-  return res.status(400).json({
-    success: false,
-    error: "Popup üzenet kötelező.",
-  });
-}
+    await pool.query(
+      `
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (key)
+      DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+      `,
+      ["welcome_popup_message", message.trim()]
+    );
 
-await pool.query(
-  `
-  INSERT INTO site_settings (key, value, updated_at)
-  VALUES ($1, $2, NOW())
-  ON CONFLICT (key)
-  DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-  `,
-  ["welcome_popup_message", message.trim()]
-);
-
-res.json({
-  success: true,
-  message: "Popup üzenet elmentve.",
+    res.json({
+      success: true,
+      message: "Popup üzenet elmentve.",
+    });
+  } catch (err) {
+    console.error("❌ Save welcome popup error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba popup mentés közben.",
+    });
+  }
 });
-
-
-} catch (err) {
-console.error("❌ Save welcome popup error:", err);
-res.status(500).json({
-success: false,
-error: "Szerver hiba popup mentés közben.",
-});
-}
-});
-
 // list customers
 app.get("/admin/customers", requireAdmin, async (req, res) => {
-try {
-const result = await pool.query(
-`SELECT id, email, subtotal, total, note, active
-       FROM customers
-       ORDER BY active DESC, email ASC`
-);
-res.json({ success: true, customers: result.rows });
-} catch (err) {
-console.error("❌ List customers error:", err);
-res.status(500).json({ success: false, error: "Szerver hiba." });
-}
+  try {
+    const result = await pool.query(
+       "SELECT id, email, subtotal, total, note, active \
+   FROM customers \
+   ORDER BY active DESC, email ASC"
+
+    );
+    res.json({ success: true, customers: result.rows });
+  } catch (err) {
+    console.error("❌ List customers error:", err);
+    res.status(500).json({ success: false, error: "Szerver hiba." });
+  }
 });
 
 // add / update customer
 app.post("/admin/customers/save", requireAdmin, async (req, res) => {
-try {
-const { id, email, subtotal, total, note } = req.body;
+  try {
+    const { id, email, subtotal, total, note } = req.body;
 
+    if (!email) {
+      return res.status(400).json({ success: false, error: "Email kötelező." });
+    }
 
-if (!email) {
-  return res.status(400).json({
-    success: false,
-    error: "Email kötelező.",
-  });
-}
+    const emailTrim = email.trim();
+    const noteText = (note || "").trim();
 
-const emailTrim = email.trim().toLowerCase();
-const noteText = (note || "").trim();
-
-const subVal =
-  subtotal === undefined || subtotal === null || subtotal === ""
-    ? null
-    : Number(subtotal);
-
-const totVal =
-  total === undefined || total === null || total === ""
-    ? null
-    : Number(total);
-
-if (id) {
-  const oldResult = await pool.query(
-    "SELECT email FROM customers WHERE id = $1",
-    [id]
-  );
-
-  if (oldResult.rows.length === 0) {
-    return res.status(404).json({
-      success: false,
-      error: "Ügyfél nem található.",
-    });
-  }
-
-  const oldEmail = oldResult.rows[0].email;
-
+    // normalise numbers
+    const subVal =
+      subtotal === undefined || subtotal === null || subtotal === ""
+        ? null
+        : Number(subtotal);
+    const totVal =
+      total === undefined || total === null || total === ""
+        ? null
+        : Number(total);
+        if (id) {
   await pool.query(
     `UPDATE customers
      SET email = $1,
@@ -674,116 +648,87 @@ if (id) {
     [emailTrim, subVal, totVal, noteText, id]
   );
 
-  // If the customer email changed, update the login email too
-  if (oldEmail.toLowerCase() !== emailTrim.toLowerCase()) {
-    await pool.query(
-      "UPDATE users SET email = $1 WHERE LOWER(email) = LOWER($2)",
-      [emailTrim, oldEmail]
+  return res.json({
+    success: true,
+    message: "Ügyfél frissítve.",
+  });
+}
+
+    // find latest record for (email, note)
+    const existing = await pool.query(
+      `SELECT id
+       FROM customers
+       WHERE LOWER(email) = LOWER($1) AND note = $2
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [emailTrim, noteText]
     );
+
+    if (existing.rows.length > 0) {
+      const id = existing.rows[0].id;
+      await pool.query(
+        `UPDATE customers
+         SET subtotal = $1,
+             total = $2,
+             note = $3,
+             active = TRUE
+         WHERE id = $4`,
+        [subVal, totVal, noteText, id]
+      );
+
+      
+      return res.json({
+        success: true,
+        message: "Ügyfél frissítve.",
+      });
+    } else {
+      await pool.query(
+        `INSERT INTO customers (email, subtotal, total, note, active)
+         VALUES ($1, $2, $3, $4, TRUE)`,
+        [emailTrim, subVal, totVal, noteText]
+      );
+      return res.json({
+        success: true,
+        message: "Ügyfél elmentve.",
+      });
+    }
+  } catch (err) {
+    console.error("❌ Save customer error:", err);
+    res.status(500).json({ success: false, error: "Szerver hiba." });
   }
-
-  return res.json({
-    success: true,
-    message: "Ügyfél frissítve.",
-  });
-}
-
-// No id means: create new customer or update latest matching email+name
-const existing = await pool.query(
-  `SELECT id
-   FROM customers
-   WHERE LOWER(email) = LOWER($1) AND note = $2
-   ORDER BY created_at DESC
-   LIMIT 1`,
-  [emailTrim, noteText]
-);
-
-if (existing.rows.length > 0) {
-  const existingId = existing.rows[0].id;
-
-  await pool.query(
-    `UPDATE customers
-     SET subtotal = $1,
-         total = $2,
-         note = $3,
-         active = TRUE
-     WHERE id = $4`,
-    [subVal, totVal, noteText, existingId]
-  );
-
-  return res.json({
-    success: true,
-    message: "Ügyfél frissítve.",
-  });
-}
-
-await pool.query(
-  `INSERT INTO customers (email, subtotal, total, note, active)
-   VALUES ($1, $2, $3, $4, TRUE)`,
-  [emailTrim, subVal, totVal, noteText]
-);
-
-return res.json({
-  success: true,
-  message: "Ügyfél elmentve.",
-});
-
-
-} catch (err) {
-console.error("❌ Save customer error:", err);
-
-
-if (err.code === "23505") {
-  return res.status(400).json({
-    success: false,
-    error: "Ez az email már létezik a felhasználók között.",
-  });
-}
-
-res.status(500).json({
-  success: false,
-  error: "Szerver hiba.",
-});
-
-
-}
 });
 
 // deactivate customer + remove login
 app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
-try {
-const { email } = req.body;
+  try {
+    const { email } = req.body;
 
+    if (!email) {
+      return res.status(400).json({ success: false, error: "Email kötelező." });
+    }
 
-if (!email) {
-  return res.status(400).json({ success: false, error: "Email kötelező." });
-}
+    // 1) Mark customer(s) inactive so they can't register again
+    await pool.query(
+      "UPDATE customers SET active = FALSE WHERE LOWER(email) = LOWER($1)",
+      [email]
+    );
 
-// 1) Mark customer(s) inactive so they can't register again
-await pool.query(
-  "UPDATE customers SET active = FALSE WHERE LOWER(email) = LOWER($1)",
-  [email]
-);
+    // 2) Remove any login account for this email so they can't log in
+    await deleteUser(email);
 
-// 2) Remove any login account for this email so they can't log in
-await deleteUser(email);
-
-res.json({
-  success: true,
-  message: "Ügyfél inaktiválva, bejelentkezés letiltva.",
+    res.json({
+      success: true,
+      message: "Ügyfél inaktiválva, bejelentkezés letiltva.",
+    });
+  } catch (err) {
+    console.error("❌ Deactivate customer error:", err);
+    res.status(500).json({ success: false, error: "Szerver hiba." });
+  }
 });
 
-
-} catch (err) {
-console.error("❌ Deactivate customer error:", err);
-res.status(500).json({ success: false, error: "Szerver hiba." });
-}
-});
-
-// simple admin UI (with search bar + edit button)
+// simple admin UI (with search bar)
 app.get("/admin", (req, res) => {
-res.send(`<!DOCTYPE html>
-
+  res.send(`<!DOCTYPE html>
 <html lang="hu">
   <head>
     <meta charset="UTF-8" />
@@ -878,18 +823,6 @@ res.send(`<!DOCTYPE html>
       .btn-primary:hover {
         background: #005fcc;
       }
-      .btn-edit {
-        padding: 6px 12px;
-        border-radius: 6px;
-        border: none;
-        cursor: pointer;
-        background: #1976d2;
-        color: #fff;
-        font-size: 13px;
-      }
-      .btn-edit:hover {
-        background: #125aa0;
-      }
       .btn-deactivate {
         padding: 6px 12px;
         border-radius: 6px;
@@ -930,7 +863,7 @@ res.send(`<!DOCTYPE html>
       th:nth-child(2),
       th:nth-child(3) { width: 12%; }
       th:nth-child(4) { width: 8%; }
-      th:nth-child(5) { width: 16%; }
+      th:nth-child(5) { width: 12%; }
       @media (max-width: 700px) {
         .admin-card {
           padding: 18px 16px 22px;
@@ -965,402 +898,353 @@ res.send(`<!DOCTYPE html>
         </div>
         <div id="status-msg"></div>
 
+        <div class="admin-key-row">
+          <input id="admin-key-input" type="password" placeholder="ADMIN_KEY" />
+          <button id="connect-btn" class="btn-primary">Csatlakozás</button>
+        </div>
 
-    <div class="admin-key-row">
-      <input id="admin-key-input" type="password" placeholder="ADMIN_KEY" />
-      <button id="connect-btn" class="btn-primary">Csatlakozás</button>
-    </div>
+        <hr />
 
-    <hr />
+        <div class="section-title">Új / meglévő ügyfél mentése</div>
+        <div class="form-row">
+          <input id="email-input" type="email" placeholder="Email cím" />
+          <input id="subtotal-input" type="number" step="0.01" placeholder="Subtotal (£)" />
+          <input id="total-input" type="number" step="0.01" placeholder="Total (£)" />
+        </div>
+        <div class="form-row">
+          <input id="note-input" type="text" placeholder="Megjegyzés (név stb.)" />
+          <button id="save-btn" class="btn-primary">Mentés / frissítés</button>
+        </div>
 
-    <div class="section-title">Új / meglévő ügyfél mentése</div>
-    <div class="form-row">
-      <input id="email-input" type="email" placeholder="Email cím" />
-      <input id="subtotal-input" type="number" step="0.01" placeholder="Subtotal (£)" />
-      <input id="total-input" type="number" step="0.01" placeholder="Total (£)" />
-    </div>
-    <div class="form-row">
-      <input id="note-input" type="text" placeholder="Megjegyzés (név stb.)" />
-      <button id="save-btn" class="btn-primary">Mentés / frissítés</button>
-    </div>
+        <!-- 🔎 SEARCH BAR (under Mentés / frissítés) -->
+        <div class="form-row">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Keresés email vagy megjegyzés alapján"
+          />
+        </div>
 
-    <!-- 🔎 SEARCH BAR (under Mentés / frissítés) -->
-    <div class="form-row">
-      <input
-        id="search-input"
-        type="text"
-        placeholder="Keresés email vagy megjegyzés alapján"
-      />
-    </div>
+        <hr />
 
-    <hr />
+<div class="section-title">Főoldali popup üzenet</div>
 
-    <div class="section-title">Főoldali popup üzenet</div>
-
-    <div class="form-row">
-      <textarea
-        id="popup-message-input"
-        placeholder="Írd ide a főoldali popup üzenetet..."
-        rows="5"
-        style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; font-family: inherit;"
-      ></textarea>
-    </div>
-
-    <div class="form-row">
-      <button id="save-popup-btn" class="btn-primary">
-        Popup üzenet mentése
-      </button>
-    </div>
-
-    <div class="section-title">Ügyfelek</div>
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Subtotal</th>
-            <th>Total</th>
-            <th>Aktív</th>
-            <th>Művelet</th>
-          </tr>
-        </thead>
-        <tbody id="customers-tbody"></tbody>
-      </table>
-    </div>
-  </div>
+<div class="form-row">
+  <textarea
+    id="popup-message-input"
+    placeholder="Írd ide a főoldali popup üzenetet..."
+    rows="5"
+    style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; font-family: inherit;"
+  ></textarea>
 </div>
 
-<script>
-  (function () {
-    var adminKey = "";
-    var statusBox = document.getElementById("status-msg");
-    var adminKeyInput = document.getElementById("admin-key-input");
-    var connectBtn = document.getElementById("connect-btn");
-    var emailInput = document.getElementById("email-input");
-    var subtotalInput = document.getElementById("subtotal-input");
-    var totalInput = document.getElementById("total-input");
-    var noteInput = document.getElementById("note-input");
-    var saveBtn = document.getElementById("save-btn");
-    var searchInput = document.getElementById("search-input");
-    var tbody = document.getElementById("customers-tbody");
-    var popupMessageInput = document.getElementById("popup-message-input");
-    var savePopupBtn = document.getElementById("save-popup-btn");
+<div class="form-row">
+  <button id="save-popup-btn" class="btn-primary">
+    Popup üzenet mentése
+  </button>
+</div>
 
-    // store all customers for filtering/editing
-    var allCustomers = [];
-    var editingCustomerId = null;
+        <div class="section-title">Ügyfelek</div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Subtotal</th>
+                <th>Total</th>
+                <th>Aktív</th>
+                <th>Művelet</th>
+              </tr>
+            </thead>
+            <tbody id="customers-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-    function setMsg(msg, isError) {
-      statusBox.textContent = msg || "";
-      statusBox.className = "";
-      if (!msg) return;
-      statusBox.classList.add(isError ? "error" : "success");
-    }
+    <script>
+      (function () {
+        var adminKey = "";
+        var statusBox = document.getElementById("status-msg");
+        var adminKeyInput = document.getElementById("admin-key-input");
+        var connectBtn = document.getElementById("connect-btn");
+        var emailInput = document.getElementById("email-input");
+        var subtotalInput = document.getElementById("subtotal-input");
+        var totalInput = document.getElementById("total-input");
+        var noteInput = document.getElementById("note-input");
+        var saveBtn = document.getElementById("save-btn");
+        var searchInput = document.getElementById("search-input");
+        var tbody = document.getElementById("customers-tbody");
+        var popupMessageInput = document.getElementById("popup-message-input");
+var savePopupBtn = document.getElementById("save-popup-btn");
+async function loadPopupMessage() {
+  if (!adminKey) return;
 
-    async function loadPopupMessage() {
-      if (!adminKey) return;
-
-      try {
-        var res = await fetch("/admin/settings/welcome-popup", {
-          headers: { "x-admin-key": adminKey },
-        });
-
-        var data = await res.json();
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Hiba popup betöltés közben.");
-        }
-
-        popupMessageInput.value = data.message || "";
-      } catch (err) {
-        console.error(err);
-        setMsg(err.message, true);
-      }
-    }
-
-    savePopupBtn.addEventListener("click", async function () {
-      if (!adminKey) {
-        setMsg("Először csatlakozz admin kulccsal!", true);
-        return;
-      }
-
-      var popupMessage = popupMessageInput.value.trim();
-
-      if (!popupMessage) {
-        setMsg("A popup üzenet nem lehet üres.", true);
-        return;
-      }
-
-      try {
-        var res = await fetch("/admin/settings/welcome-popup", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": adminKey,
-          },
-          body: JSON.stringify({
-            message: popupMessage,
-          }),
-        });
-
-        var data = await res.json();
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Hiba popup mentés közben.");
-        }
-
-        setMsg(data.message || "Popup üzenet elmentve.", false);
-      } catch (err) {
-        console.error(err);
-        setMsg(err.message, true);
-      }
+  try {
+    var res = await fetch("/admin/settings/welcome-popup", {
+      headers: { "x-admin-key": adminKey },
     });
 
-    async function fetchCustomers() {
-      try {
-        setMsg("Ügyfelek betöltése...", false);
-        var res = await fetch("/admin/customers", {
-          headers: { "x-admin-key": adminKey }
-        });
-        var data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Hiba az ügyfelek betöltése közben.");
-        }
-        allCustomers = data.customers || [];
-        applyFilter();  // render with current search filter
-        setMsg("Ügyfelek betöltve.", false);
-      } catch (err) {
-        console.error(err);
-        setMsg(err.message, true);
-      }
+    var data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Hiba popup betöltés közben.");
     }
 
-    function renderTable(list) {
-      tbody.innerHTML = "";
-      list.forEach(function (c) {
-        var tr = document.createElement("tr");
-        tr.innerHTML =
-          "<td>" + (c.email || "") + "</td>" +
-          "<td>" + (c.subtotal != null ? c.subtotal : "") + "</td>" +
-          "<td>" + (c.total != null ? c.total : "") + "</td>" +
-          "<td>" + (c.active ? "✔" : "✖") + "</td>" +
-          "<td>" +
-            '<button class="btn-edit" data-id="' + c.id + '">Edit</button> ' +
-            (c.active
-              ? '<button class="btn-deactivate" data-email="' + c.email + '">Törlés</button>'
-              : ""
-            ) +
-          "</td>";
-        tbody.appendChild(tr);
-      });
+    popupMessageInput.value = data.message || "";
+  } catch (err) {
+    console.error(err);
+    setMsg(err.message, true);
+  }
+}
+
+savePopupBtn.addEventListener("click", async function () {
+  if (!adminKey) {
+    setMsg("Először csatlakozz admin kulccsal!", true);
+    return;
+  }
+
+  var popupMessage = popupMessageInput.value.trim();
+
+  if (!popupMessage) {
+    setMsg("A popup üzenet nem lehet üres.", true);
+    return;
+  }
+
+  try {
+    var res = await fetch("/admin/settings/welcome-popup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      },
+      body: JSON.stringify({
+        message: popupMessage,
+      }),
+    });
+
+    var data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Hiba popup mentés közben.");
     }
 
-    // 🔎 filter by email or note (megjegyzés)
-    function applyFilter() {
-      var q = (searchInput.value || "").toLowerCase();
-      if (!q) {
-        renderTable(allCustomers);
-        return;
-      }
-      var filtered = allCustomers.filter(function (c) {
-        var email = (c.email || "").toLowerCase();
-        var note = (c.note || "").toLowerCase();
-        return email.includes(q) || note.includes(q);
-      });
-      renderTable(filtered);
-    }
+    setMsg(data.message || "Popup üzenet elmentve.", false);
+  } catch (err) {
+    console.error(err);
+    setMsg(err.message, true);
+  }
+});
 
-    // update table as user types
-    searchInput.addEventListener("input", applyFilter);
+        // store all customers for filtering
+        var allCustomers = [];
+        var editingCustomerId = null;
 
-    connectBtn.addEventListener("click", function () {
-      var key = adminKeyInput.value.trim();
-      if (!key) {
-        setMsg("Add meg az admin kulcsot!", true);
-        return;
-      }
-
-      adminKey = key;
-      fetchCustomers();
-      loadPopupMessage();
-    });
-
-    saveBtn.addEventListener("click", async function () {
-      if (!adminKey) {
-        setMsg("Először csatlakozz admin kulccsal!", true);
-        return;
-      }
-      var email = emailInput.value.trim();
-      var subtotal = subtotalInput.value.trim();
-      var total = totalInput.value.trim();
-      var note = noteInput.value.trim();
-      if (!email) {
-        setMsg("Email kötelező.", true);
-        return;
-      }
-
-      var payload = { email: email, note: note };
-
-      if (editingCustomerId) {
-        payload.id = editingCustomerId;
-      }
-
-      if (subtotal) payload.subtotal = parseFloat(subtotal);
-      if (total) payload.total = parseFloat(total);
-
-      try {
-        var res = await fetch("/admin/customers/save", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": adminKey
-          },
-          body: JSON.stringify(payload)
-        });
-        var data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Hiba mentés közben.");
-        }
-        setMsg(data.message || "Ügyfél elmentve / frissítve.", false);
-
-        emailInput.value = "";
-        subtotalInput.value = "";
-        totalInput.value = "";
-        noteInput.value = "";
-        editingCustomerId = null;
-        saveBtn.textContent = "Mentés / frissítés";
-        fetchCustomers();
-      } catch (err) {
-        console.error(err);
-        setMsg(err.message, true);
-      }
-    });
-
-    tbody.addEventListener("click", async function (e) {
-      // EDIT button
-      var editBtn = e.target.closest(".btn-edit");
-      if (editBtn) {
-        var id = editBtn.getAttribute("data-id");
-
-        var customer = allCustomers.find(function (c) {
-          return String(c.id) === String(id);
-        });
-
-        if (!customer) {
-          setMsg("Ügyfél nem található szerkesztéshez.", true);
-          return;
+        function setMsg(msg, isError) {
+          statusBox.textContent = msg || "";
+          statusBox.className = "";
+          if (!msg) return;
+          statusBox.classList.add(isError ? "error" : "success");
         }
 
-        editingCustomerId = customer.id;
-
-        emailInput.value = customer.email || "";
-        subtotalInput.value = customer.subtotal != null ? customer.subtotal : "";
-        totalInput.value = customer.total != null ? customer.total : "";
-        noteInput.value = customer.note || "";
-
-        saveBtn.textContent = "Módosítás mentése";
-        setMsg("Szerkesztési mód: " + (customer.email || ""), false);
-
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
-
-      // DELETE button
-      var btn = e.target.closest(".btn-deactivate");
-      if (!btn) return;
-
-      if (!adminKey) {
-        setMsg("Először csatlakozz admin kulccsal!", true);
-        return;
-      }
-
-      var email = btn.getAttribute("data-email");
-      if (!email) return;
-
-      if (!confirm(email + " törlése / inaktiválása?")) return;
-
-      try {
-        var res = await fetch("/admin/customers/deactivate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": adminKey
-          },
-          body: JSON.stringify({ email: email })
-        });
-
-        var data = await res.json();
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Hiba törlés közben.");
+        async function fetchCustomers() {
+          try {
+            setMsg("Ügyfelek betöltése...", false);
+            var res = await fetch("/admin/customers", {
+              headers: { "x-admin-key": adminKey }
+            });
+            var data = await res.json();
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || "Hiba az ügyfelek betöltése közben.");
+            }
+            allCustomers = data.customers || [];
+            applyFilter();  // render with current search filter
+            setMsg("Ügyfelek betöltve.", false);
+          } catch (err) {
+            console.error(err);
+            setMsg(err.message, true);
+          }
         }
 
-        setMsg(data.message || "Ügyfél inaktiválva.", false);
-        fetchCustomers();
-      } catch (err) {
-        console.error(err);
-        setMsg(err.message, true);
-      }
-    });
-  })();
-</script>
+        function renderTable(list) {
+          tbody.innerHTML = "";
+          list.forEach(function (c) {
+            var tr = document.createElement("tr");
+            tr.innerHTML =
+              "<td>" + (c.email || "") + "</td>" +
+              "<td>" + (c.subtotal != null ? c.subtotal : "") + "</td>" +
+              "<td>" + (c.total != null ? c.total : "") + "</td>" +
+              "<td>" + (c.active ? "✔" : "✖") + "</td>" +
+            "<td>" +
+  '<button class="btn-edit" data-id="' + c.id + '">Edit</button> ' +
+  (c.active
+    ? '<button class="btn-deactivate" data-email="' + c.email + '">Törlés</button>'
+    : ""
+  ) +
+"</td>";
+            tbody.appendChild(tr);
+          });
+        }
 
+        // 🔎 filter by email or note (megjegyzés)
+        function applyFilter() {
+          var q = (searchInput.value || "").toLowerCase();
+          if (!q) {
+            renderTable(allCustomers);
+            return;
+          }
+          var filtered = allCustomers.filter(function (c) {
+            var email = (c.email || "").toLowerCase();
+            var note = (c.note || "").toLowerCase();
+            return email.includes(q) || note.includes(q);
+          });
+          renderTable(filtered);
+        }
 
+        // update table as user types
+        searchInput.addEventListener("input", applyFilter);
+
+     connectBtn.addEventListener("click", function () {
+  var key = adminKeyInput.value.trim();
+  if (!key) {
+    setMsg("Add meg az admin kulcsot!", true);
+    return;
+  }
+
+  adminKey = key;
+  fetchCustomers();
+  loadPopupMessage();
+});
+
+        saveBtn.addEventListener("click", async function () {
+          if (!adminKey) {
+            setMsg("Először csatlakozz admin kulccsal!", true);
+            return;
+          }
+          var email = emailInput.value.trim();
+          var subtotal = subtotalInput.value.trim();
+          var total = totalInput.value.trim();
+          var note = noteInput.value.trim();
+          if (!email) {
+            setMsg("Email kötelező.", true);
+            return;
+          }
+          var payload = { email: email, note: note };
+
+if (editingCustomerId) {
+  payload.id = editingCustomerId;
+}
+          if (subtotal) payload.subtotal = parseFloat(subtotal);
+          if (total) payload.total = parseFloat(total);
+
+          try {
+            var res = await fetch("/admin/customers/save", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-admin-key": adminKey
+              },
+              body: JSON.stringify(payload)
+            });
+            var data = await res.json();
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || "Hiba mentés közben.");
+            }
+            setMsg(data.message || "Ügyfél elmentve / frissítve.", false);
+           emailInput.value = "";
+subtotalInput.value = "";
+totalInput.value = "";
+noteInput.value = "";
+editingCustomerId = null;
+saveBtn.textContent = "Mentés / frissítés";
+fetchCustomers();
+          } catch (err) {
+            console.error(err);
+            setMsg(err.message, true);
+          }
+        });
+
+        tbody.addEventListener("click", async function (e) {
+          var btn = e.target.closest(".btn-deactivate");
+          if (!btn) return;
+          if (!adminKey) {
+            setMsg("Először csatlakozz admin kulccsal!", true);
+            return;
+          }
+          var email = btn.getAttribute("data-email");
+          if (!email) return;
+          if (!confirm(email + " törlése / inaktiválása?")) return;
+          try {
+            var res = await fetch("/admin/customers/deactivate", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-admin-key": adminKey
+              },
+              body: JSON.stringify({ email: email })
+            });
+            var data = await res.json();
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || "Hiba törlés közben.");
+            }
+            setMsg(data.message || "Ügyfél inaktiválva.", false);
+            fetchCustomers();
+          } catch (err) {
+            console.error(err);
+            setMsg(err.message, true);
+          }
+        });
+      })();
+    </script>
   </body>
 </html>`);
 });
 
 // Public endpoint for frontend name suggestions
 app.get("/public/customers", async (req, res) => {
-try {
-const result = await pool.query(
-"SELECT email, note, subtotal, total FROM customers WHERE active = TRUE ORDER BY created_at DESC"
-);
+  try {
+    const result = await pool.query(
+      "SELECT email, note, subtotal, total FROM customers WHERE active = TRUE ORDER BY created_at DESC"
+    );
 
+    const data = result.rows.map((r) => ({
+      "Customer Email": r.email,
+      "Customer Name": r.note || "",
+      Subtotal: r.subtotal !== null ? Number(r.subtotal) : null,
+      Total: r.total !== null ? Number(r.total) : null,
+    }));
 
-const data = result.rows.map((r) => ({
-  "Customer Email": r.email,
-  "Customer Name": r.note || "",
-  Subtotal: r.subtotal !== null ? Number(r.subtotal) : null,
-  Total: r.total !== null ? Number(r.total) : null,
-}));
-
-res.json(data);
-
-
-} catch (err) {
-console.error("❌ Public customers error:", err);
-res.status(500).json({ error: "Szerver hiba." });
-}
-});
-
-// Public endpoint for index.html welcome popup message
-app.get("/public/settings/welcome-popup", async (req, res) => {
-try {
-const result = await pool.query(
-"SELECT value FROM site_settings WHERE key = $1",
-["welcome_popup_message"]
-);
-
-
-res.json({
-  success: true,
-  message:
-    result.rows[0]?.value ||
-    'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
-});
-
-
-} catch (err) {
-console.error("❌ Public welcome popup error:", err);
-res.status(500).json({
-success: false,
-error: "Szerver hiba.",
-});
-}
+    res.json(data);
+  } catch (err) {
+    console.error("❌ Public customers error:", err);
+    res.status(500).json({ error: "Szerver hiba." });
+  }
 });
 
 // ---------- START SERVER ----------
+
+// Public endpoint for index.html welcome popup message
+app.get("/public/settings/welcome-popup", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT value FROM site_settings WHERE key = $1",
+      ["welcome_popup_message"]
+    );
+
+    res.json({
+      success: true,
+      message:
+        result.rows[0]?.value ||
+        'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
+    });
+  } catch (err) {
+    console.error("❌ Public welcome popup error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba.",
+    });
+  }
+});
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
