@@ -116,6 +116,16 @@ await pool.query(
   ]
 );
 
+
+await pool.query(
+  `
+  INSERT INTO site_settings (key, value)
+  VALUES ($1, $2)
+  ON CONFLICT (key) DO NOTHING
+  `,
+  ["welcome_popup_enabled", "true"]
+);
+
 console.log("✅ Site settings table ensured");
 ```
 
@@ -548,15 +558,23 @@ stripeKeyPrefix: process.env.STRIPE_SECRET_KEY
 // Admin: get current welcome popup message
 app.get("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
 try {
-const result = await pool.query(
+const messageResult = await pool.query(
 "SELECT value FROM site_settings WHERE key = $1",
 ["welcome_popup_message"]
 );
 
+const enabledResult = await pool.query(
+"SELECT value FROM site_settings WHERE key = $1",
+["welcome_popup_enabled"]
+);
+
+const enabled = enabledResult.rows[0]?.value !== "false";
+
 ```
 res.json({
   success: true,
-  message: result.rows[0]?.value || "",
+  message: messageResult.rows[0]?.value || "",
+  enabled,
 });
 ```
 
@@ -603,6 +621,40 @@ console.error("❌ Save welcome popup error:", err);
 res.status(500).json({
 success: false,
 error: "Szerver hiba popup mentés közben.",
+});
+}
+});
+
+
+// Admin: turn welcome popup on/off
+app.post("/admin/settings/welcome-popup-enabled", requireAdmin, async (req, res) => {
+try {
+const { enabled } = req.body;
+
+const value = enabled ? "true" : "false";
+
+await pool.query(
+  `
+  INSERT INTO site_settings (key, value, updated_at)
+  VALUES ($1, $2, NOW())
+  ON CONFLICT (key)
+  DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+  `,
+  ["welcome_popup_enabled", value]
+);
+
+res.json({
+  success: true,
+  message: enabled
+    ? "Popup üzenet bekapcsolva."
+    : "Popup üzenet kikapcsolva.",
+  enabled,
+});
+} catch (err) {
+console.error("❌ Save popup enabled error:", err);
+res.status(500).json({
+success: false,
+error: "Szerver hiba popup kapcsoló mentés közben.",
 });
 }
 });
@@ -890,6 +942,19 @@ res.send(`<!DOCTYPE html>
       .btn-edit:hover {
         background: #125aa0;
       }
+
+      .popup-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .popup-toggle-row input {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+      }
       .btn-deactivate {
         padding: 6px 12px;
         border-radius: 6px;
@@ -1012,6 +1077,13 @@ res.send(`<!DOCTYPE html>
       </button>
     </div>
 
+    <div class="form-row" style="align-items: center; margin-top: 12px;">
+      <label class="popup-toggle-row">
+        <input id="popup-enabled-toggle" type="checkbox" />
+        <span>Popup üzenet bekapcsolva</span>
+      </label>
+    </div>
+
     <div class="section-title">Ügyfelek</div>
     <div class="table-wrapper">
       <table>
@@ -1045,6 +1117,7 @@ res.send(`<!DOCTYPE html>
     var tbody = document.getElementById("customers-tbody");
     var popupMessageInput = document.getElementById("popup-message-input");
     var savePopupBtn = document.getElementById("save-popup-btn");
+var popupEnabledToggle = document.getElementById("popup-enabled-toggle");
 
     // store all customers for filtering/editing
     var allCustomers = [];
@@ -1072,6 +1145,7 @@ res.send(`<!DOCTYPE html>
         }
 
         popupMessageInput.value = data.message || "";
+        popupEnabledToggle.checked = data.enabled !== false;
       } catch (err) {
         console.error(err);
         setMsg(err.message, true);
@@ -1115,6 +1189,39 @@ res.send(`<!DOCTYPE html>
         setMsg(err.message, true);
       }
     });
+
+
+popupEnabledToggle.addEventListener("change", async function () {
+  if (!adminKey) {
+    setMsg("Először csatlakozz admin kulccsal!", true);
+    popupEnabledToggle.checked = !popupEnabledToggle.checked;
+    return;
+  }
+
+  try {
+    var res = await fetch("/admin/settings/welcome-popup-enabled", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-key": adminKey,
+      },
+      body: JSON.stringify({
+        enabled: popupEnabledToggle.checked,
+      }),
+    });
+
+    var data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Hiba popup kapcsoló mentés közben.");
+    }
+
+    setMsg(data.message || "Popup kapcsoló mentve.", false);
+  } catch (err) {
+    console.error(err);
+    setMsg(err.message, true);
+  }
+});
 
     async function fetchCustomers() {
       try {
@@ -1337,16 +1444,24 @@ res.status(500).json({ error: "Szerver hiba." });
 // Public endpoint for index.html welcome popup message
 app.get("/public/settings/welcome-popup", async (req, res) => {
 try {
-const result = await pool.query(
+const messageResult = await pool.query(
 "SELECT value FROM site_settings WHERE key = $1",
 ["welcome_popup_message"]
 );
 
+const enabledResult = await pool.query(
+"SELECT value FROM site_settings WHERE key = $1",
+["welcome_popup_enabled"]
+);
+
+const enabled = enabledResult.rows[0]?.value !== "false";
+
 ```
 res.json({
   success: true,
+  enabled,
   message:
-    result.rows[0]?.value ||
+    messageResult.rows[0]?.value ||
     'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
 });
 ```
