@@ -55,7 +55,6 @@ await pool.query(`       DO $$
       $$;
     `);
 
-```
 // 🔹 Ensure table exists (without UNIQUE on email)
 await pool.query(`
   CREATE TABLE IF NOT EXISTS customers (
@@ -70,7 +69,7 @@ await pool.query(`
 `);
 
 console.log("✅ Customers table ensured");
-```
+
 
 } catch (err) {
 console.error("❌ Error initialising customers table:", err);
@@ -103,7 +102,7 @@ await pool.query(`       CREATE TABLE IF NOT EXISTS site_settings (
       );
     `);
 
-```
+
 await pool.query(
   `
   INSERT INTO site_settings (key, value)
@@ -127,7 +126,7 @@ await pool.query(
 );
 
 console.log("✅ Site settings table ensured");
-```
+
 
 } catch (err) {
 console.error("❌ Error initialising site settings table:", err);
@@ -256,7 +255,7 @@ app.post("/register", async (req, res) => {
 try {
 const { email, password } = req.body;
 
-```
+
 if (!email || !password) {
   return res.status(400).json({ error: "Email és jelszó kötelező." });
 }
@@ -290,7 +289,7 @@ const passwordHash = hashPassword(password);
 await createUser(emailLower, passwordHash);
 
 res.json({ success: true, message: "Sikeres regisztráció!" });
-```
+
 
 } catch (err) {
 console.error("❌ Register error:", err);
@@ -305,7 +304,7 @@ app.post("/login", async (req, res) => {
 try {
 const { email, password } = req.body;
 
-```
+
 if (!email || !password) {
   return res.status(400).json({ error: "Email és jelszó kötelező." });
 }
@@ -316,7 +315,7 @@ if (!user || !verifyPassword(password, user.password_hash)) {
 }
 
 res.json({ success: true, email: user.email });
-```
+
 
 } catch (err) {
 console.error("❌ Login error:", err);
@@ -329,7 +328,7 @@ app.post("/change-password", async (req, res) => {
 try {
 const { email, oldPassword, newPassword } = req.body;
 
-```
+
 if (!email || !oldPassword || !newPassword) {
   return res
     .status(400)
@@ -354,7 +353,7 @@ const newHash = hashPassword(newPassword);
 await updateUserPassword(email, newHash);
 
 res.json({ success: true, message: "Jelszó sikeresen megváltoztatva." });
-```
+
 
 } catch (err) {
 console.error("❌ Change password error:", err);
@@ -367,7 +366,7 @@ app.post("/delete-account", async (req, res) => {
 try {
 const { email, password } = req.body;
 
-```
+
 if (!email || !password) {
   return res.status(400).json({ error: "Email és jelszó kötelező." });
 }
@@ -384,7 +383,7 @@ if (!verifyPassword(password, user.password_hash)) {
 await deleteUser(email);
 
 res.json({ success: true, message: "Fiók törölve." });
-```
+
 
 } catch (err) {
 console.error("❌ Delete account error:", err);
@@ -397,7 +396,7 @@ app.post("/forgot-password", async (req, res) => {
 try {
 const { email } = req.body;
 
-```
+
 if (!email) {
   return res.status(400).json({ error: "Email kötelező." });
 }
@@ -425,7 +424,7 @@ res.json({
     "Ha létezik ilyen email cím, új ideiglenes jelszót hoztunk létre.",
   tempPassword,
 });
-```
+
 
 } catch (err) {
 console.error("❌ Forgot password error:", err);
@@ -442,7 +441,7 @@ try {
 const cart = req.body.cart || [];
 console.log("📩 Received cart:", cart);
 
-```
+
 if (!cart.length) return res.status(400).json({ error: "Cart is empty" });
 
 const line_items = cart.map((i) => {
@@ -475,7 +474,7 @@ const session = await stripe.checkout.sessions.create({
 });
 
 res.json({ id: session.id });
-```
+
 
 } catch (err) {
 console.error("❌ Error creating checkout session:", err);
@@ -491,7 +490,7 @@ if (!session_id) {
 return res.status(400).json({ error: "Missing session_id" });
 }
 
-```
+
 const session = await stripe.checkout.sessions.retrieve(session_id, {
   expand: ["customer_details"],
 });
@@ -506,7 +505,7 @@ res.json({
   currency: session.currency.toUpperCase(),
   date: new Date(session.created * 1000).toLocaleDateString("en-GB"),
 });
-```
+
 
 } catch (err) {
 console.error("❌ Error fetching session:", err);
@@ -520,7 +519,7 @@ app.post("/notify-payment", async (req, res) => {
 try {
 const { date, customer_name, amount_total } = req.body;
 
-```
+
 await transporter.sendMail({
   from: process.env.EMAIL_USER,
   to: "your.email@example.com", // change to your real email
@@ -530,7 +529,7 @@ await transporter.sendMail({
 
 console.log("📧 Payment notification email sent!");
 res.json({ success: true });
-```
+
 
 } catch (err) {
 console.error("❌ Email sending failed:", err);
@@ -570,13 +569,13 @@ const enabledResult = await pool.query(
 
 const enabled = enabledResult.rows[0]?.value !== "false";
 
-```
+
 res.json({
   success: true,
   message: messageResult.rows[0]?.value || "",
   enabled,
 });
-```
+
 
 } catch (err) {
 console.error("❌ Admin get welcome popup error:", err);
@@ -592,7 +591,7 @@ app.post("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
 try {
 const { message } = req.body;
 
-```
+
 if (!message || !message.trim()) {
   return res.status(400).json({
     success: false,
@@ -614,7 +613,7 @@ res.json({
   success: true,
   message: "Popup üzenet elmentve.",
 });
-```
+
 
 } catch (err) {
 console.error("❌ Save welcome popup error:", err);
@@ -679,7 +678,7 @@ app.post("/admin/customers/save", requireAdmin, async (req, res) => {
 try {
 const { id, email, subtotal, total, note } = req.body;
 
-```
+
 if (!email) {
   return res.status(400).json({
     success: false,
@@ -779,12 +778,12 @@ return res.json({
   success: true,
   message: "Ügyfél elmentve.",
 });
-```
+
 
 } catch (err) {
 console.error("❌ Save customer error:", err);
 
-```
+
 if (err.code === "23505") {
   return res.status(400).json({
     success: false,
@@ -796,7 +795,7 @@ res.status(500).json({
   success: false,
   error: "Szerver hiba.",
 });
-```
+
 
 }
 });
@@ -806,7 +805,7 @@ app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
 try {
 const { email } = req.body;
 
-```
+
 if (!email) {
   return res.status(400).json({ success: false, error: "Email kötelező." });
 }
@@ -824,7 +823,7 @@ res.json({
   success: true,
   message: "Ügyfél inaktiválva, bejelentkezés letiltva.",
 });
-```
+
 
 } catch (err) {
 console.error("❌ Deactivate customer error:", err);
@@ -1030,7 +1029,7 @@ res.send(`<!DOCTYPE html>
         </div>
         <div id="status-msg"></div>
 
-```
+
     <div class="admin-key-row">
       <input id="admin-key-input" type="password" placeholder="ADMIN_KEY" />
       <button id="connect-btn" class="btn-primary">Csatlakozás</button>
@@ -1411,7 +1410,7 @@ popupEnabledToggle.addEventListener("change", async function () {
     });
   })();
 </script>
-```
+
 
   </body>
 </html>`);
@@ -1424,7 +1423,7 @@ const result = await pool.query(
 "SELECT email, note, subtotal, total FROM customers WHERE active = TRUE ORDER BY created_at DESC"
 );
 
-```
+
 const data = result.rows.map((r) => ({
   "Customer Email": r.email,
   "Customer Name": r.note || "",
@@ -1433,7 +1432,7 @@ const data = result.rows.map((r) => ({
 }));
 
 res.json(data);
-```
+
 
 } catch (err) {
 console.error("❌ Public customers error:", err);
@@ -1456,7 +1455,7 @@ const enabledResult = await pool.query(
 
 const enabled = enabledResult.rows[0]?.value !== "false";
 
-```
+
 res.json({
   success: true,
   enabled,
@@ -1464,7 +1463,7 @@ res.json({
     messageResult.rows[0]?.value ||
     'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
 });
-```
+
 
 } catch (err) {
 console.error("❌ Public welcome popup error:", err);
