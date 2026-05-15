@@ -19,7 +19,6 @@ const app = express();
 
 // ---------- POSTGRES SETUP ----------
 
-// Normalize connection string in case it starts with postgresql://
 let dbUrl = process.env.DATABASE_URL;
 
 if (!dbUrl) {
@@ -32,14 +31,13 @@ if (dbUrl && dbUrl.startsWith("postgresql://")) {
 
 const pool = new Pool({
   connectionString: dbUrl,
-  ssl: dbUrl ? { rejectUnauthorized: false } : false, // required for Render Postgres
+  ssl: dbUrl ? { rejectUnauthorized: false } : false,
 });
 
 // ---------- TABLE INIT ----------
 
 async function initCustomersTable() {
   try {
-    // 🔹 If an *old* table exists with UNIQUE(email), drop that constraint
     await pool.query(`
       DO $$
       BEGIN
@@ -56,7 +54,6 @@ async function initCustomersTable() {
       $$;
     `);
 
-    // 🔹 Ensure table exists (without UNIQUE on email)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS customers (
         id SERIAL PRIMARY KEY,
@@ -91,12 +88,6 @@ async function initUsersTable() {
   }
 }
 
-initCustomersTable();
-initUsersTable();
-initSiteSettingsTable();
-
-// -----------Edit Pop Ip ---------//
-
 async function initSiteSettingsTable() {
   try {
     await pool.query(`
@@ -119,11 +110,24 @@ async function initSiteSettingsTable() {
       ]
     );
 
+    await pool.query(
+      `
+      INSERT INTO site_settings (key, value)
+      VALUES ($1, $2)
+      ON CONFLICT (key) DO NOTHING
+      `,
+      ["welcome_popup_enabled", "true"]
+    );
+
     console.log("✅ Site settings table ensured");
   } catch (err) {
     console.error("❌ Error initialising site settings table:", err);
   }
 }
+
+initCustomersTable();
+initUsersTable();
+initSiteSettingsTable();
 
 // ---------- ADMIN + CUSTOMER HELPERS ----------
 
@@ -137,7 +141,6 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// ✅ Allowed customer emails now come ONLY from Postgres
 async function readCustomerEmails() {
   const result = await pool.query(
     "SELECT DISTINCT LOWER(email) AS email FROM customers WHERE active = TRUE"
@@ -192,33 +195,6 @@ async function updateUserPassword(email, newPasswordHash) {
   );
 }
 
-tbody.addEventListener("click", function (e) {
-  var editBtn = e.target.closest(".btn-edit");
-  if (!editBtn) return;
-
-  var id = editBtn.getAttribute("data-id");
-  var customer = allCustomers.find(function (c) {
-    return String(c.id) === String(id);
-  });
-
-  if (!customer) {
-    setMsg("Ügyfél nem található szerkesztéshez.", true);
-    return;
-  }
-
-  editingCustomerId = customer.id;
-
-  emailInput.value = customer.email || "";
-  subtotalInput.value = customer.subtotal != null ? customer.subtotal : "";
-  totalInput.value = customer.total != null ? customer.total : "";
-  noteInput.value = customer.note || "";
-
-  saveBtn.textContent = "Módosítás mentése";
-  setMsg("Szerkesztési mód: " + (customer.email || ""), false);
-
-  window.scrollTo({ top: 0, behavior: "smooth" });
-});
-
 async function deleteUser(email) {
   await pool.query("DELETE FROM users WHERE LOWER(email) = LOWER($1)", [email]);
 }
@@ -228,8 +204,8 @@ async function deleteUser(email) {
 app.use(
   cors({
     origin: [
-      "https://sondyshop.it.com", // primary domain
-      "https://www.sondyshop.it.com", // www alias (redirects)
+      "https://sondyshop.it.com",
+      "https://www.sondyshop.it.com",
       "http://127.0.0.1:5500",
       "http://localhost:5500",
     ],
@@ -265,7 +241,6 @@ transporter.verify((err) => {
 
 // ---------- AUTH ROUTES ----------
 
-// 🧾 Register – ONLY emails from *customers table* can register
 app.post("/register", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -281,7 +256,6 @@ app.post("/register", async (req, res) => {
 
     const emailLower = email.trim().toLowerCase();
 
-    // ✅ check allowed emails from Postgres
     const allowedEmails = await readCustomerEmails();
     if (!allowedEmails.includes(emailLower)) {
       return res.status(400).json({
@@ -291,7 +265,6 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    // check if user already exists in DB
     const existing = await findUserByEmail(emailLower);
     if (existing) {
       return res
@@ -311,7 +284,6 @@ app.post("/register", async (req, res) => {
   }
 });
 
-// 🔑 Login
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -332,7 +304,6 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// 🔐 Change password
 app.post("/change-password", async (req, res) => {
   try {
     const { email, oldPassword, newPassword } = req.body;
@@ -367,7 +338,6 @@ app.post("/change-password", async (req, res) => {
   }
 });
 
-// ❌ Delete account (user-initiated)
 app.post("/delete-account", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -394,7 +364,6 @@ app.post("/delete-account", async (req, res) => {
   }
 });
 
-// 🔁 Forgot password
 app.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -479,7 +448,6 @@ app.post("/create-checkout-session", async (req, res) => {
   }
 });
 
-// used by success.html to show payment info
 app.get("/checkout-session", async (req, res) => {
   try {
     const { session_id } = req.query;
@@ -515,7 +483,7 @@ app.post("/notify-payment", async (req, res) => {
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "your.email@example.com", // change to your real email
+      to: "your.email@example.com",
       subject: "💰 New Payment Completed",
       text: `A payment of £${amount_total} was made by ${customer_name} on ${date}.`,
     });
@@ -544,17 +512,25 @@ app.get("/debug-env", (req, res) => {
 });
 
 // ---------- ADMIN API + UI ----------
-// Admin: get current welcome popup message
+
 app.get("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
   try {
-    const result = await pool.query(
+    const messageResult = await pool.query(
       "SELECT value FROM site_settings WHERE key = $1",
       ["welcome_popup_message"]
     );
 
+    const enabledResult = await pool.query(
+      "SELECT value FROM site_settings WHERE key = $1",
+      ["welcome_popup_enabled"]
+    );
+
+    const enabled = enabledResult.rows[0]?.value !== "false";
+
     res.json({
       success: true,
-      message: result.rows[0]?.value || "",
+      message: messageResult.rows[0]?.value || "",
+      enabled,
     });
   } catch (err) {
     console.error("❌ Admin get welcome popup error:", err);
@@ -565,7 +541,6 @@ app.get("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
   }
 });
 
-// Admin: save welcome popup message
 app.post("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
   try {
     const { message } = req.body;
@@ -599,14 +574,44 @@ app.post("/admin/settings/welcome-popup", requireAdmin, async (req, res) => {
     });
   }
 });
-// list customers
+
+app.post("/admin/settings/welcome-popup-enabled", requireAdmin, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const value = enabled ? "true" : "false";
+
+    await pool.query(
+      `
+      INSERT INTO site_settings (key, value, updated_at)
+      VALUES ($1, $2, NOW())
+      ON CONFLICT (key)
+      DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+      `,
+      ["welcome_popup_enabled", value]
+    );
+
+    res.json({
+      success: true,
+      message: enabled
+        ? "Popup üzenet bekapcsolva."
+        : "Popup üzenet kikapcsolva.",
+      enabled,
+    });
+  } catch (err) {
+    console.error("❌ Save popup enabled error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba popup kapcsoló mentés közben.",
+    });
+  }
+});
+
 app.get("/admin/customers", requireAdmin, async (req, res) => {
   try {
     const result = await pool.query(
-       "SELECT id, email, subtotal, total, note, active \
-   FROM customers \
-   ORDER BY active DESC, email ASC"
-
+      `SELECT id, email, subtotal, total, note, active
+       FROM customers
+       ORDER BY active DESC, email ASC`
     );
     res.json({ success: true, customers: result.rows });
   } catch (err) {
@@ -615,46 +620,69 @@ app.get("/admin/customers", requireAdmin, async (req, res) => {
   }
 });
 
-// add / update customer
 app.post("/admin/customers/save", requireAdmin, async (req, res) => {
   try {
     const { id, email, subtotal, total, note } = req.body;
 
     if (!email) {
-      return res.status(400).json({ success: false, error: "Email kötelező." });
+      return res.status(400).json({
+        success: false,
+        error: "Email kötelező.",
+      });
     }
 
-    const emailTrim = email.trim();
+    const emailTrim = email.trim().toLowerCase();
     const noteText = (note || "").trim();
 
-    // normalise numbers
     const subVal =
       subtotal === undefined || subtotal === null || subtotal === ""
         ? null
         : Number(subtotal);
+
     const totVal =
       total === undefined || total === null || total === ""
         ? null
         : Number(total);
-        if (id) {
-  await pool.query(
-    `UPDATE customers
-     SET email = $1,
-         subtotal = $2,
-         total = $3,
-         note = $4,
-         active = TRUE
-     WHERE id = $5`,
-    [emailTrim, subVal, totVal, noteText, id]
-  );
 
-  return res.json({
-    success: true,
-    message: "Ügyfél frissítve.",
-  });
-}
+    if (id) {
+      const oldResult = await pool.query(
+        "SELECT email FROM customers WHERE id = $1",
+        [id]
+      );
 
-    // find latest record for (email, note)
+      if (oldResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "Ügyfél nem található.",
+        });
+      }
+
+      const oldEmail = oldResult.rows[0].email;
+
+      await pool.query(
+        `UPDATE customers
+         SET email = $1,
+             subtotal = $2,
+             total = $3,
+             note = $4,
+             active = TRUE
+         WHERE id = $5`,
+        [emailTrim, subVal, totVal, noteText, id]
+      );
+
+      if (oldEmail.toLowerCase() !== emailTrim.toLowerCase()) {
+        await pool.query(
+          "UPDATE users SET email = $1 WHERE LOWER(email) = LOWER($2)",
+          [emailTrim, oldEmail]
+        );
+      }
+
+      return res.json({
+        success: true,
+        message: "Ügyfél frissítve.",
+      });
+    }
+
     const existing = await pool.query(
       `SELECT id
        FROM customers
@@ -665,7 +693,8 @@ app.post("/admin/customers/save", requireAdmin, async (req, res) => {
     );
 
     if (existing.rows.length > 0) {
-      const id = existing.rows[0].id;
+      const existingId = existing.rows[0].id;
+
       await pool.query(
         `UPDATE customers
          SET subtotal = $1,
@@ -673,32 +702,42 @@ app.post("/admin/customers/save", requireAdmin, async (req, res) => {
              note = $3,
              active = TRUE
          WHERE id = $4`,
-        [subVal, totVal, noteText, id]
+        [subVal, totVal, noteText, existingId]
       );
 
-      
       return res.json({
         success: true,
         message: "Ügyfél frissítve.",
       });
-    } else {
-      await pool.query(
-        `INSERT INTO customers (email, subtotal, total, note, active)
-         VALUES ($1, $2, $3, $4, TRUE)`,
-        [emailTrim, subVal, totVal, noteText]
-      );
-      return res.json({
-        success: true,
-        message: "Ügyfél elmentve.",
-      });
     }
+
+    await pool.query(
+      `INSERT INTO customers (email, subtotal, total, note, active)
+       VALUES ($1, $2, $3, $4, TRUE)`,
+      [emailTrim, subVal, totVal, noteText]
+    );
+
+    return res.json({
+      success: true,
+      message: "Ügyfél elmentve.",
+    });
   } catch (err) {
     console.error("❌ Save customer error:", err);
-    res.status(500).json({ success: false, error: "Szerver hiba." });
+
+    if (err.code === "23505") {
+      return res.status(400).json({
+        success: false,
+        error: "Ez az email már létezik a felhasználók között.",
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: "Szerver hiba.",
+    });
   }
 });
 
-// deactivate customer + remove login
 app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
@@ -707,13 +746,11 @@ app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: "Email kötelező." });
     }
 
-    // 1) Mark customer(s) inactive so they can't register again
     await pool.query(
       "UPDATE customers SET active = FALSE WHERE LOWER(email) = LOWER($1)",
       [email]
     );
 
-    // 2) Remove any login account for this email so they can't log in
     await deleteUser(email);
 
     res.json({
@@ -726,7 +763,6 @@ app.post("/admin/customers/deactivate", requireAdmin, async (req, res) => {
   }
 });
 
-// simple admin UI (with search bar)
 app.get("/admin", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="hu">
@@ -735,15 +771,11 @@ app.get("/admin", (req, res) => {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sonda SHOP – Admin</title>
     <style>
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
-        background: url("https://sondyshop.it.com/dog.jpg") center/cover
-          no-repeat fixed;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: url("https://sondyshop.it.com/dog.jpg") center/cover no-repeat fixed;
       }
       .admin-page {
         min-height: 100vh;
@@ -755,53 +787,21 @@ app.get("/admin", (req, res) => {
       }
       .admin-card {
         width: 100%;
-        max-width: 900px;
+        max-width: 1000px;
         background: rgba(255, 255, 255, 0.96);
         border-radius: 24px;
         box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
         padding: 24px 24px 28px;
       }
-      .admin-header {
-        text-align: center;
-        margin-bottom: 10px;
-      }
-      .admin-header h1 {
-        margin: 0 0 8px;
-        font-size: 28px;
-      }
-      .admin-header p {
-        margin: 0;
-        font-size: 14px;
-        color: #444;
-      }
-      #status-msg {
-        margin-top: 10px;
-        margin-bottom: 10px;
-        font-size: 14px;
-        min-height: 18px;
-      }
-      #status-msg.success {
-        color: #2e7d32;
-      }
-      #status-msg.error {
-        color: #c62828;
-      }
-      .section-title {
-        margin: 18px 0 6px;
-        font-size: 16px;
-        font-weight: 600;
-      }
-      .admin-key-row,
-      .form-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 6px;
-      }
-      input[type="text"],
-      input[type="email"],
-      input[type="password"],
-      input[type="number"] {
+      .admin-header { text-align: center; margin-bottom: 10px; }
+      .admin-header h1 { margin: 0 0 8px; font-size: 28px; }
+      .admin-header p { margin: 0; font-size: 14px; color: #444; }
+      #status-msg { margin-top: 10px; margin-bottom: 10px; font-size: 14px; min-height: 18px; }
+      #status-msg.success { color: #2e7d32; }
+      #status-msg.error { color: #c62828; }
+      .section-title { margin: 18px 0 6px; font-size: 16px; font-weight: 600; }
+      .admin-key-row, .form-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+      input[type="text"], input[type="email"], input[type="password"], input[type="number"] {
         flex: 1;
         min-width: 140px;
         padding: 10px 12px;
@@ -820,9 +820,17 @@ app.get("/admin", (req, res) => {
         font-weight: 600;
         white-space: nowrap;
       }
-      .btn-primary:hover {
-        background: #005fcc;
+      .btn-primary:hover { background: #005fcc; }
+      .btn-edit {
+        padding: 6px 12px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        background: #1976d2;
+        color: #fff;
+        font-size: 13px;
       }
+      .btn-edit:hover { background: #125aa0; }
       .btn-deactivate {
         padding: 6px 12px;
         border-radius: 6px;
@@ -832,60 +840,35 @@ app.get("/admin", (req, res) => {
         color: #fff;
         font-size: 13px;
       }
-      .btn-deactivate:hover {
-        background: #a51e1e;
+      .btn-deactivate:hover { background: #a51e1e; }
+      .popup-toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        cursor: pointer;
       }
-      hr {
-        margin: 16px 0;
-        border: none;
-        border-top: 1px solid #ddd;
+      .popup-toggle-row input {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
       }
-      .table-wrapper {
-        margin-top: 10px;
-        overflow-x: auto;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 14px;
-      }
-      thead {
-        background: #f2f2f2;
-      }
-      th,
-      td {
+      hr { margin: 16px 0; border: none; border-top: 1px solid #ddd; }
+      .table-wrapper { margin-top: 10px; overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      thead { background: #f2f2f2; }
+      th, td {
         padding: 8px 10px;
         border-bottom: 1px solid #eee;
         text-align: left;
         white-space: nowrap;
       }
-      th:nth-child(1) { width: 40%; }
-      th:nth-child(2),
-      th:nth-child(3) { width: 12%; }
-      th:nth-child(4) { width: 8%; }
-      th:nth-child(5) { width: 12%; }
       @media (max-width: 700px) {
-        .admin-card {
-          padding: 18px 16px 22px;
-          border-radius: 18px;
-        }
-        .admin-header h1 {
-          font-size: 22px;
-        }
-        .admin-key-row,
-        .form-row {
-          flex-direction: column;
-        }
-        input[type="text"],
-        input[type="email"],
-        input[type="password"],
-        input[type="number"] {
-          min-width: 100%;
-        }
-        .btn-primary {
-          width: 100%;
-          text-align: center;
-        }
+        .admin-card { padding: 18px 16px 22px; border-radius: 18px; }
+        .admin-header h1 { font-size: 22px; }
+        .admin-key-row, .form-row { flex-direction: column; }
+        input[type="text"], input[type="email"], input[type="password"], input[type="number"] { min-width: 100%; }
+        .btn-primary { width: 100%; text-align: center; }
       }
     </style>
   </head>
@@ -916,33 +899,25 @@ app.get("/admin", (req, res) => {
           <button id="save-btn" class="btn-primary">Mentés / frissítés</button>
         </div>
 
-        <!-- 🔎 SEARCH BAR (under Mentés / frissítés) -->
         <div class="form-row">
-          <input
-            id="search-input"
-            type="text"
-            placeholder="Keresés email vagy megjegyzés alapján"
-          />
+          <input id="search-input" type="text" placeholder="Keresés email vagy megjegyzés alapján" />
         </div>
 
         <hr />
 
-<div class="section-title">Főoldali popup üzenet</div>
-
-<div class="form-row">
-  <textarea
-    id="popup-message-input"
-    placeholder="Írd ide a főoldali popup üzenetet..."
-    rows="5"
-    style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; font-family: inherit;"
-  ></textarea>
-</div>
-
-<div class="form-row">
-  <button id="save-popup-btn" class="btn-primary">
-    Popup üzenet mentése
-  </button>
-</div>
+        <div class="section-title">Főoldali popup üzenet</div>
+        <div class="form-row">
+          <textarea id="popup-message-input" placeholder="Írd ide a főoldali popup üzenetet..." rows="5" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; font-family: inherit;"></textarea>
+        </div>
+        <div class="form-row">
+          <button id="save-popup-btn" class="btn-primary">Popup üzenet mentése</button>
+        </div>
+        <div class="form-row" style="align-items: center; margin-top: 12px;">
+          <label class="popup-toggle-row">
+            <input id="popup-enabled-toggle" type="checkbox" />
+            <span>Popup üzenet bekapcsolva</span>
+          </label>
+        </div>
 
         <div class="section-title">Ügyfelek</div>
         <div class="table-wrapper">
@@ -976,67 +951,9 @@ app.get("/admin", (req, res) => {
         var searchInput = document.getElementById("search-input");
         var tbody = document.getElementById("customers-tbody");
         var popupMessageInput = document.getElementById("popup-message-input");
-var savePopupBtn = document.getElementById("save-popup-btn");
-async function loadPopupMessage() {
-  if (!adminKey) return;
+        var savePopupBtn = document.getElementById("save-popup-btn");
+        var popupEnabledToggle = document.getElementById("popup-enabled-toggle");
 
-  try {
-    var res = await fetch("/admin/settings/welcome-popup", {
-      headers: { "x-admin-key": adminKey },
-    });
-
-    var data = await res.json();
-
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || "Hiba popup betöltés közben.");
-    }
-
-    popupMessageInput.value = data.message || "";
-  } catch (err) {
-    console.error(err);
-    setMsg(err.message, true);
-  }
-}
-
-savePopupBtn.addEventListener("click", async function () {
-  if (!adminKey) {
-    setMsg("Először csatlakozz admin kulccsal!", true);
-    return;
-  }
-
-  var popupMessage = popupMessageInput.value.trim();
-
-  if (!popupMessage) {
-    setMsg("A popup üzenet nem lehet üres.", true);
-    return;
-  }
-
-  try {
-    var res = await fetch("/admin/settings/welcome-popup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-key": adminKey,
-      },
-      body: JSON.stringify({
-        message: popupMessage,
-      }),
-    });
-
-    var data = await res.json();
-
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || "Hiba popup mentés közben.");
-    }
-
-    setMsg(data.message || "Popup üzenet elmentve.", false);
-  } catch (err) {
-    console.error(err);
-    setMsg(err.message, true);
-  }
-});
-
-        // store all customers for filtering
         var allCustomers = [];
         var editingCustomerId = null;
 
@@ -1046,6 +963,94 @@ savePopupBtn.addEventListener("click", async function () {
           if (!msg) return;
           statusBox.classList.add(isError ? "error" : "success");
         }
+
+        async function loadPopupMessage() {
+          if (!adminKey) return;
+
+          try {
+            var res = await fetch("/admin/settings/welcome-popup", {
+              headers: { "x-admin-key": adminKey },
+            });
+
+            var data = await res.json();
+
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || "Hiba popup betöltés közben.");
+            }
+
+            popupMessageInput.value = data.message || "";
+            popupEnabledToggle.checked = data.enabled !== false;
+          } catch (err) {
+            console.error(err);
+            setMsg(err.message, true);
+          }
+        }
+
+        savePopupBtn.addEventListener("click", async function () {
+          if (!adminKey) {
+            setMsg("Először csatlakozz admin kulccsal!", true);
+            return;
+          }
+
+          var popupMessage = popupMessageInput.value.trim();
+
+          if (!popupMessage) {
+            setMsg("A popup üzenet nem lehet üres.", true);
+            return;
+          }
+
+          try {
+            var res = await fetch("/admin/settings/welcome-popup", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-admin-key": adminKey,
+              },
+              body: JSON.stringify({ message: popupMessage }),
+            });
+
+            var data = await res.json();
+
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || "Hiba popup mentés közben.");
+            }
+
+            setMsg(data.message || "Popup üzenet elmentve.", false);
+          } catch (err) {
+            console.error(err);
+            setMsg(err.message, true);
+          }
+        });
+
+        popupEnabledToggle.addEventListener("change", async function () {
+          if (!adminKey) {
+            setMsg("Először csatlakozz admin kulccsal!", true);
+            popupEnabledToggle.checked = !popupEnabledToggle.checked;
+            return;
+          }
+
+          try {
+            var res = await fetch("/admin/settings/welcome-popup-enabled", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-admin-key": adminKey,
+              },
+              body: JSON.stringify({ enabled: popupEnabledToggle.checked }),
+            });
+
+            var data = await res.json();
+
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || "Hiba popup kapcsoló mentés közben.");
+            }
+
+            setMsg(data.message || "Popup kapcsoló mentve.", false);
+          } catch (err) {
+            console.error(err);
+            setMsg(err.message, true);
+          }
+        });
 
         async function fetchCustomers() {
           try {
@@ -1058,7 +1063,7 @@ savePopupBtn.addEventListener("click", async function () {
               throw new Error(data.error || "Hiba az ügyfelek betöltése közben.");
             }
             allCustomers = data.customers || [];
-            applyFilter();  // render with current search filter
+            applyFilter();
             setMsg("Ügyfelek betöltve.", false);
           } catch (err) {
             console.error(err);
@@ -1075,18 +1080,17 @@ savePopupBtn.addEventListener("click", async function () {
               "<td>" + (c.subtotal != null ? c.subtotal : "") + "</td>" +
               "<td>" + (c.total != null ? c.total : "") + "</td>" +
               "<td>" + (c.active ? "✔" : "✖") + "</td>" +
-            "<td>" +
-  '<button class="btn-edit" data-id="' + c.id + '">Edit</button> ' +
-  (c.active
-    ? '<button class="btn-deactivate" data-email="' + c.email + '">Törlés</button>'
-    : ""
-  ) +
-"</td>";
+              "<td>" +
+                '<button class="btn-edit" data-id="' + c.id + '">Edit</button> ' +
+                (c.active
+                  ? '<button class="btn-deactivate" data-email="' + c.email + '">Törlés</button>'
+                  : ""
+                ) +
+              "</td>";
             tbody.appendChild(tr);
           });
         }
 
-        // 🔎 filter by email or note (megjegyzés)
         function applyFilter() {
           var q = (searchInput.value || "").toLowerCase();
           if (!q) {
@@ -1101,20 +1105,19 @@ savePopupBtn.addEventListener("click", async function () {
           renderTable(filtered);
         }
 
-        // update table as user types
         searchInput.addEventListener("input", applyFilter);
 
-     connectBtn.addEventListener("click", function () {
-  var key = adminKeyInput.value.trim();
-  if (!key) {
-    setMsg("Add meg az admin kulcsot!", true);
-    return;
-  }
+        connectBtn.addEventListener("click", function () {
+          var key = adminKeyInput.value.trim();
+          if (!key) {
+            setMsg("Add meg az admin kulcsot!", true);
+            return;
+          }
 
-  adminKey = key;
-  fetchCustomers();
-  loadPopupMessage();
-});
+          adminKey = key;
+          fetchCustomers();
+          loadPopupMessage();
+        });
 
         saveBtn.addEventListener("click", async function () {
           if (!adminKey) {
@@ -1129,11 +1132,13 @@ savePopupBtn.addEventListener("click", async function () {
             setMsg("Email kötelező.", true);
             return;
           }
+
           var payload = { email: email, note: note };
 
-if (editingCustomerId) {
-  payload.id = editingCustomerId;
-}
+          if (editingCustomerId) {
+            payload.id = editingCustomerId;
+          }
+
           if (subtotal) payload.subtotal = parseFloat(subtotal);
           if (total) payload.total = parseFloat(total);
 
@@ -1151,13 +1156,14 @@ if (editingCustomerId) {
               throw new Error(data.error || "Hiba mentés közben.");
             }
             setMsg(data.message || "Ügyfél elmentve / frissítve.", false);
-           emailInput.value = "";
-subtotalInput.value = "";
-totalInput.value = "";
-noteInput.value = "";
-editingCustomerId = null;
-saveBtn.textContent = "Mentés / frissítés";
-fetchCustomers();
+
+            emailInput.value = "";
+            subtotalInput.value = "";
+            totalInput.value = "";
+            noteInput.value = "";
+            editingCustomerId = null;
+            saveBtn.textContent = "Mentés / frissítés";
+            fetchCustomers();
           } catch (err) {
             console.error(err);
             setMsg(err.message, true);
@@ -1165,15 +1171,46 @@ fetchCustomers();
         });
 
         tbody.addEventListener("click", async function (e) {
+          var editBtn = e.target.closest(".btn-edit");
+          if (editBtn) {
+            var id = editBtn.getAttribute("data-id");
+
+            var customer = allCustomers.find(function (c) {
+              return String(c.id) === String(id);
+            });
+
+            if (!customer) {
+              setMsg("Ügyfél nem található szerkesztéshez.", true);
+              return;
+            }
+
+            editingCustomerId = customer.id;
+
+            emailInput.value = customer.email || "";
+            subtotalInput.value = customer.subtotal != null ? customer.subtotal : "";
+            totalInput.value = customer.total != null ? customer.total : "";
+            noteInput.value = customer.note || "";
+
+            saveBtn.textContent = "Módosítás mentése";
+            setMsg("Szerkesztési mód: " + (customer.email || ""), false);
+
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+          }
+
           var btn = e.target.closest(".btn-deactivate");
           if (!btn) return;
+
           if (!adminKey) {
             setMsg("Először csatlakozz admin kulccsal!", true);
             return;
           }
+
           var email = btn.getAttribute("data-email");
           if (!email) return;
+
           if (!confirm(email + " törlése / inaktiválása?")) return;
+
           try {
             var res = await fetch("/admin/customers/deactivate", {
               method: "POST",
@@ -1183,10 +1220,13 @@ fetchCustomers();
               },
               body: JSON.stringify({ email: email })
             });
+
             var data = await res.json();
+
             if (!res.ok || !data.success) {
               throw new Error(data.error || "Hiba törlés közben.");
             }
+
             setMsg(data.message || "Ügyfél inaktiválva.", false);
             fetchCustomers();
           } catch (err) {
@@ -1200,7 +1240,6 @@ fetchCustomers();
 </html>`);
 });
 
-// Public endpoint for frontend name suggestions
 app.get("/public/customers", async (req, res) => {
   try {
     const result = await pool.query(
@@ -1221,20 +1260,25 @@ app.get("/public/customers", async (req, res) => {
   }
 });
 
-// ---------- START SERVER ----------
-
-// Public endpoint for index.html welcome popup message
 app.get("/public/settings/welcome-popup", async (req, res) => {
   try {
-    const result = await pool.query(
+    const messageResult = await pool.query(
       "SELECT value FROM site_settings WHERE key = $1",
       ["welcome_popup_message"]
     );
 
+    const enabledResult = await pool.query(
+      "SELECT value FROM site_settings WHERE key = $1",
+      ["welcome_popup_enabled"]
+    );
+
+    const enabled = enabledResult.rows[0]?.value !== "false";
+
     res.json({
       success: true,
+      enabled,
       message:
-        result.rows[0]?.value ||
+        messageResult.rows[0]?.value ||
         'Facebook Megszűnik hamarosan!!! Ezen a linken Telegrammon tudtok elérni: <a href="https://t.me/SondaC" target="_blank" rel="noopener noreferrer">t.me/SondaC</a>',
     });
   } catch (err) {
@@ -1245,6 +1289,8 @@ app.get("/public/settings/welcome-popup", async (req, res) => {
     });
   }
 });
+
+// ---------- START SERVER ----------
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
